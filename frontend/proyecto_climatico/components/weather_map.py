@@ -5,31 +5,26 @@ from proyecto_climatico.styles.theme import Theme
 
 
 def weather_map() -> rx.Component:
-    lat = AppState.selected_location["latitude"]
-    lon = AppState.selected_location["longitude"]
-    loc_name = AppState.selected_location["name"]
-
-    # OpenStreetMap iframe embed link for responsive interactive map
-    map_url = f"https://www.openstreetmap.org/export/embed.html?bbox={lon - 0.15}%2C{lat - 0.15}%2C{lon + 0.15}%2C{lat + 0.15}&layer=mapnik&marker={lat}%2C{lon}"
-
     return rx.box(
         rx.vstack(
             rx.hstack(
                 rx.icon(tag="map", size=20, color=Theme.PRIMARY),
                 rx.heading(
-                    f"Mapa de ubicación: {loc_name}", size="5", color=Theme.TEXT_PRIMARY
+                    "Mapa de ubicación: " + AppState.selected_location["name"].to(str),
+                    size="5",
+                    color=Theme.TEXT_PRIMARY,
                 ),
                 spacing="2",
                 align_items="center",
             ),
             rx.text(
-                f"Coordenadas: {lat:.4f}°, {lon:.4f}°",
+                AppState.coordinates_display,
                 font_size="13px",
                 color=Theme.TEXT_SECONDARY,
             ),
             rx.box(
                 rx.html(
-                    f'<iframe width="100%" height="280" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="{map_url}" style="border-radius: 12px; border: 1px solid #E2E8F0;"></iframe>'
+                    f'<iframe width="100%" height="280" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="{AppState.map_embed_url}" style="border-radius: 12px; border: 1px solid #E2E8F0;"></iframe>'
                 ),
                 width="100%",
                 height="280px",

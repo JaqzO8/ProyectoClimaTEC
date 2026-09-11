@@ -5,30 +5,14 @@ from proyecto_climatico.styles.theme import Theme
 
 
 def hourly_item(item: rx.Var[dict]) -> rx.Component:
-    units = AppState.weather_data["units"]
     return rx.box(
         rx.vstack(
-            rx.text(
-                item["time"],
-                font_size="13px",
-                color=Theme.TEXT_SECONDARY,
-                font_weight="500",
-            ),
+            rx.text(item["time"].to(str), font_size="13px", color=Theme.TEXT_SECONDARY, font_weight="500"),
             rx.icon(tag="cloud_sun", size=24, color=Theme.PRIMARY),
-            rx.text(
-                f"{item['temperature']:.0f}{units['temperature']}",
-                font_size="16px",
-                font_weight="700",
-                color=Theme.TEXT_PRIMARY,
-            ),
+            rx.text(item["temperature"].to(str), font_size="16px", font_weight="700", color=Theme.TEXT_PRIMARY),
             rx.hstack(
                 rx.icon(tag="droplet", size=12, color=Theme.ACCENT),
-                rx.text(
-                    f"{item['precipitation_probability']}%",
-                    font_size="12px",
-                    color=Theme.ACCENT,
-                    font_weight="600",
-                ),
+                rx.text(item["precipitation_probability"].to(str) + "%", font_size="12px", color=Theme.ACCENT, font_weight="600"),
                 spacing="1",
                 align_items="center",
             ),
@@ -45,21 +29,16 @@ def hourly_item(item: rx.Var[dict]) -> rx.Component:
 
 
 def hourly_forecast() -> rx.Component:
-    hourly_list = AppState.weather_data["hourly"]
     return rx.box(
         rx.vstack(
             rx.hstack(
                 rx.icon(tag="clock", size=20, color=Theme.PRIMARY),
-                rx.heading(
-                    "Pronóstico por horas (próximas 24h)",
-                    size="5",
-                    color=Theme.TEXT_PRIMARY,
-                ),
+                rx.heading("Pronóstico por horas (próximas 24h)", size="5", color=Theme.TEXT_PRIMARY),
                 spacing="2",
                 align_items="center",
             ),
             rx.hstack(
-                rx.foreach(hourly_list, hourly_item),
+                rx.foreach(AppState.hourly_list, hourly_item),
                 overflow_x="auto",
                 width="100%",
                 padding_bottom="12px",

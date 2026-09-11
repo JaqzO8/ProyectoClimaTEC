@@ -25,7 +25,7 @@ class AppState(rx.State):
     active_result_index: int = -1
 
     selected_location: dict[str, Any] = DEFAULT_LOCATION
-    weather_data: dict[str, Any] | None = None
+    weather_data: dict[str, Any] = {}
 
     is_loading_weather: bool = False
     error_message: str = ""
@@ -38,6 +38,100 @@ class AppState(rx.State):
 
     using_geolocation: bool = False
     geolocation_error: str = ""
+
+    @rx.var
+    def has_weather_data(self) -> bool:
+        return bool(self.weather_data and "current" in self.weather_data)
+
+    @rx.var
+    def current_temp_display(self) -> str:
+        if not self.weather_data or "current" not in self.weather_data:
+            return "--°"
+        curr = self.weather_data["current"]
+        u = self.weather_data.get("units", {}).get("temperature", "°C")
+        return f"{curr.get('temperature', 0):.0f}{u}"
+
+    @rx.var
+    def current_apparent_temp_display(self) -> str:
+        if not self.weather_data or "current" not in self.weather_data:
+            return "--"
+        curr = self.weather_data["current"]
+        u = self.weather_data.get("units", {}).get("temperature", "°C")
+        return f"Sensación térmica: {curr.get('apparent_temperature', 0):.0f}{u}"
+
+    @rx.var
+    def current_weather_label(self) -> str:
+        if not self.weather_data or "current" not in self.weather_data:
+            return "Cargando..."
+        return str(self.weather_data["current"].get("weather_label", ""))
+
+    @rx.var
+    def current_humidity(self) -> str:
+        if not self.weather_data or "current" not in self.weather_data:
+            return "--"
+        return f"{self.weather_data['current'].get('relative_humidity', 0)}%"
+
+    @rx.var
+    def current_wind_display(self) -> str:
+        if not self.weather_data or "current" not in self.weather_data:
+            return "--"
+        curr = self.weather_data["current"]
+        u = self.weather_data.get("units", {}).get("wind_speed", "km/h")
+        return f"{curr.get('wind_speed', 0):.1f} {u} ({curr.get('wind_direction', 0)}°)"
+
+    @rx.var
+    def current_gusts_display(self) -> str:
+        if not self.weather_data or "current" not in self.weather_data:
+            return "--"
+        curr = self.weather_data["current"]
+        u = self.weather_data.get("units", {}).get("wind_speed", "km/h")
+        return f"{curr.get('wind_gusts', 0):.1f} {u}"
+
+    @rx.var
+    def current_precip_display(self) -> str:
+        if not self.weather_data or "current" not in self.weather_data:
+            return "--"
+        curr = self.weather_data["current"]
+        u = self.weather_data.get("units", {}).get("precipitation", "mm")
+        return f"{curr.get('precipitation', 0):.1f} {u}"
+
+    @rx.var
+    def current_pressure_display(self) -> str:
+        if not self.weather_data or "current" not in self.weather_data:
+            return "--"
+        return f"{self.weather_data['current'].get('surface_pressure', 0):.0f} hPa"
+
+    @rx.var
+    def current_cloud_display(self) -> str:
+        if not self.weather_data or "current" not in self.weather_data:
+            return "--"
+        return f"{self.weather_data['current'].get('cloud_cover', 0)}%"
+
+    @rx.var
+    def observed_at_display(self) -> str:
+        if not self.weather_data:
+            return "--"
+        return str(self.weather_data.get("observed_at", ""))
+
+    @rx.var
+    def map_embed_url(self) -> str:
+        lat = float(self.selected_location.get("latitude", -9.29388))
+        lon = float(self.selected_location.get("longitude", -76.0064))
+        return f"https://www.openstreetmap.org/export/embed.html?bbox={lon-0.15:.4f}%2C{lat-0.15:.4f}%2C{lon+0.15:.4f}%2C{lat+0.15:.4f}&layer=mapnik&marker={lat:.4f}%2C{lon:.4f}"
+
+    @rx.var
+    def coordinates_display(self) -> str:
+        lat = float(self.selected_location.get("latitude", -9.29388))
+        lon = float(self.selected_location.get("longitude", -76.0064))
+        return f"Coordenadas: {lat:.4f}°, {lon:.4f}°"
+
+    @rx.var
+    def hourly_list(self) -> list[dict[str, Any]]:
+        return list(self.weather_data.get("hourly", [])) if self.weather_data else []
+
+    @rx.var
+    def daily_list(self) -> list[dict[str, Any]]:
+        return list(self.weather_data.get("daily", [])) if self.weather_data else []
 
     async def on_load(self):
         await self.load_weather()

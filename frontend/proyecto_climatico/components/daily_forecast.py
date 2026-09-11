@@ -5,36 +5,19 @@ from proyecto_climatico.styles.theme import Theme
 
 
 def daily_item(item: rx.Var[dict]) -> rx.Component:
-    units = AppState.weather_data["units"]
     return rx.box(
         rx.hstack(
             rx.vstack(
-                rx.text(
-                    item["date"],
-                    font_size="15px",
-                    font_weight="700",
-                    color=Theme.TEXT_PRIMARY,
-                ),
-                rx.text(
-                    item["weather_label"], font_size="13px", color=Theme.TEXT_SECONDARY
-                ),
+                rx.text(item["date"].to(str), font_size="15px", font_weight="700", color=Theme.TEXT_PRIMARY),
+                rx.text(item["weather_label"].to(str), font_size="13px", color=Theme.TEXT_SECONDARY),
                 spacing="0",
                 align_items="start",
             ),
             rx.hstack(
                 rx.icon(tag="sun", size=24, color=Theme.SUNNY),
                 rx.hstack(
-                    rx.text(
-                        f"{item['temperature_max']:.0f}°",
-                        font_size="16px",
-                        font_weight="700",
-                        color=Theme.TEXT_PRIMARY,
-                    ),
-                    rx.text(
-                        f"/ {item['temperature_min']:.0f}{units['temperature']}",
-                        font_size="14px",
-                        color=Theme.TEXT_SECONDARY,
-                    ),
+                    rx.text(item["temperature_max"].to(str) + "°", font_size="16px", font_weight="700", color=Theme.TEXT_PRIMARY),
+                    rx.text("/ " + item["temperature_min"].to(str) + "°", font_size="14px", color=Theme.TEXT_SECONDARY),
                     spacing="1",
                     align_items="baseline",
                 ),
@@ -44,21 +27,13 @@ def daily_item(item: rx.Var[dict]) -> rx.Component:
             rx.hstack(
                 rx.hstack(
                     rx.icon(tag="cloud_rain", size=14, color=Theme.ACCENT),
-                    rx.text(
-                        f"{item['precipitation_sum']:.1f} {units['precipitation']}",
-                        font_size="13px",
-                        color=Theme.TEXT_SECONDARY,
-                    ),
+                    rx.text(item["precipitation_sum"].to(str) + " mm", font_size="13px", color=Theme.TEXT_SECONDARY),
                     spacing="1",
                     align_items="center",
                 ),
                 rx.hstack(
                     rx.icon(tag="wind", size=14, color=Theme.CLOUDY),
-                    rx.text(
-                        f"{item['wind_speed_max']:.0f} {units['wind_speed']}",
-                        font_size="13px",
-                        color=Theme.TEXT_SECONDARY,
-                    ),
+                    rx.text(item["wind_speed_max"].to(str) + " km/h", font_size="13px", color=Theme.TEXT_SECONDARY),
                     spacing="1",
                     align_items="center",
                 ),
@@ -78,19 +53,16 @@ def daily_item(item: rx.Var[dict]) -> rx.Component:
 
 
 def daily_forecast() -> rx.Component:
-    daily_list = AppState.weather_data["daily"]
     return rx.box(
         rx.vstack(
             rx.hstack(
                 rx.icon(tag="calendar", size=20, color=Theme.PRIMARY),
-                rx.heading(
-                    "Pronóstico diario (7 días)", size="5", color=Theme.TEXT_PRIMARY
-                ),
+                rx.heading("Pronóstico diario (7 días)", size="5", color=Theme.TEXT_PRIMARY),
                 spacing="2",
                 align_items="center",
             ),
             rx.vstack(
-                rx.foreach(daily_list, daily_item),
+                rx.foreach(AppState.daily_list, daily_item),
                 spacing="2",
                 width="100%",
             ),

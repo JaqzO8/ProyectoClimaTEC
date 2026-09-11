@@ -48,7 +48,7 @@ def index() -> rx.Component:
                         AppState.has_error,
                         inline_error(),
                         rx.cond(
-                            AppState.weather_data.is_not_none(),
+                            AppState.has_weather_data,
                             rx.vstack(
                                 current_weather_hero(),
                                 hourly_forecast(),
@@ -83,8 +83,4 @@ app = rx.App(
         panel_background="solid",
     )
 )
-app.add_page(
-    index,
-    title="ProyectoClimatico — Aplicación Meteorológica Global",
-    on_load=AppState.on_load,
-)
+app.add_page(index, title="ProyectoClimatico — Aplicación Meteorológica Global", on_load=AppState.on_load)
