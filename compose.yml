@@ -1,0 +1,55 @@
+name: proyectoclimatico
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: proyectoclimatico-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=development
+      - APP_NAME=ProyectoClimatico
+      - API_V1_PREFIX=/api/v1
+      - WEATHER_PROVIDER=open_meteo
+      - WEATHER_TIMEOUT_SECONDS=5
+      - WEATHER_CACHE_TTL_SECONDS=300
+      - GEOCODING_CACHE_TTL_SECONDS=1800
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - proyecto_climatico_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: proyectoclimatico-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - API_URL=http://backend:8000
+      - BACKEND_PUBLIC_URL=http://localhost:8000
+      - PORT=3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:3000')\" || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - proyecto_climatico_net
+
+networks:
+  proyecto_climatico_net:
+    driver: bridge

@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Testing & Coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.mutmut-cache
+
+# Reflex / Frontend
+.web/
+frontend/.web/
+*.log
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Docker
+docker-compose.override.yml
+
+# IDE & OS Junk
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
