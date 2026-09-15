@@ -91,7 +91,7 @@ echo "⏳ Esperando inicialización de servicios..."
 sleep 15
 
 echo "🔍 Estado de los contenedores:"
-sudo $DOCKER_COMPOSE_CMD -f compose.prod.yml ps
+sudo docker compose -f compose.prod.yml ps
 
 # Limpieza de imágenes dangling
 sudo docker image prune -f || true
