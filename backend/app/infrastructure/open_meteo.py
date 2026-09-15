@@ -1,10 +1,11 @@
 import asyncio
+import math
 from typing import Any, cast
 
 import httpx
 
 from app.application.ports import WeatherProvider
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.domain.models import (
     CurrentWeatherData,
     CurrentWeatherResponse,
@@ -42,9 +43,105 @@ class OpenMeteoWeatherProvider(WeatherProvider):
         self,
         client: httpx.AsyncClient | None = None,
         cache: TTLMemoryCache | None = None,
+        config: Settings | None = None,
     ):
-        self.client = client or httpx.AsyncClient(timeout=settings.WEATHER_TIMEOUT_SECONDS)
-        self.cache = cache or TTLMemoryCache(default_ttl=settings.WEATHER_CACHE_TTL_SECONDS)
+        self.config = config or settings
+        self._client = client
+        self._owns_client = client is None
+        self.cache = cache or TTLMemoryCache(default_ttl=self.config.WEATHER_CACHE_TTL_SECONDS)
+
+    @property
+    def client(self) -> httpx.AsyncClient:
+        if self._client is None or (self._owns_client and self._client.is_closed):
+            self._client = httpx.AsyncClient(timeout=self.config.WEATHER_TIMEOUT_SECONDS)
+        return self._client
+
+    async def aclose(self) -> None:
+        if self._owns_client and self._client is not None:
+            await self._client.aclose()
+
+    async def _request(
+        self, url: str, params: dict[str, str | int | float | bool | None]
+    ) -> dict[str, Any]:
+        # Add credentials only after computing the cache key. Never log the URL.
+        if self.config.OPEN_METEO_API_MODE == "commercial":
+            url = url.replace("https://", "https://customer-", 1)
+            params = {**params, "apikey": self.config.OPEN_METEO_API_KEY.get_secret_value()}
+        try:
+            async with asyncio.timeout(self.config.WEATHER_TIMEOUT_SECONDS):
+                for attempt in range(2):
+                    try:
+                        response = await self.client.get(url, params=params)
+                        if response.status_code >= 500 and attempt == 0:
+                            await asyncio.sleep(0.1)
+                            continue
+                        response.raise_for_status()
+                        data = response.json()
+                        if not isinstance(data, dict) or data.get("error"):
+                            raise ValueError("Invalid provider payload")
+                        return cast(dict[str, Any], data)
+                    except httpx.TransportError:
+                        if attempt:
+                            raise
+                        await asyncio.sleep(0.1)
+        except (TimeoutError, httpx.TimeoutException) as exc:
+            raise OpenMeteoError(
+                "WEATHER_PROVIDER_TIMEOUT", "El proveedor no respondió a tiempo.", 504
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 429:
+                raise OpenMeteoError(
+                    "RATE_LIMITED", "Se alcanzó el límite de solicitudes del proveedor.", 429
+                ) from exc
+            raise OpenMeteoError(
+                "WEATHER_PROVIDER_UNAVAILABLE",
+                "El proveedor no está disponible temporalmente.",
+                502,
+            ) from exc
+        except httpx.RequestError as exc:
+            raise OpenMeteoError(
+                "WEATHER_PROVIDER_UNAVAILABLE", "No se pudo conectar con el proveedor.", 502
+            ) from exc
+        except (ValueError, TypeError) as exc:
+            raise self._bad_response() from exc
+        raise self._bad_response()
+
+    @staticmethod
+    def _bad_response() -> OpenMeteoError:
+        return OpenMeteoError(
+            "WEATHER_PROVIDER_BAD_RESPONSE", "Respuesta no válida del proveedor meteorológico.", 502
+        )
+
+    def _section(self, data: dict[str, Any], name: str) -> dict[str, Any]:
+        section = data.get(name)
+        if not isinstance(section, dict) or not section.get("time"):
+            raise self._bad_response()
+        return cast(dict[str, Any], section)
+
+    def _validate_forecast(self, data: dict[str, Any], params: dict[str, Any]) -> None:
+        if not isinstance(data.get("timezone"), str):
+            raise self._bad_response()
+        for name in ("current", "hourly", "daily"):
+            if name not in data:
+                continue
+            section = self._section(data, name)
+            times = section["time"]
+            if name != "current" and not isinstance(times, list):
+                raise self._bad_response()
+            for field in params[name].split(","):
+                values = [section.get(field)] if name == "current" else section.get(field)
+                if not isinstance(values, list) or (
+                    name != "current" and len(values) != len(times)
+                ):
+                    raise self._bad_response()
+                for value in values:
+                    # Polar sunrise/sunset and unavailable measurements are explicit errors,
+                    # never fabricated zero-valued weather.
+                    if field in ("sunrise", "sunset"):
+                        if value is not None and not isinstance(value, str):
+                            raise self._bad_response()
+                    elif not isinstance(value, (int, float)) or not math.isfinite(value):
+                        raise self._bad_response()
 
     def _build_display_name(
         self,
@@ -105,7 +202,7 @@ class OpenMeteoWeatherProvider(WeatherProvider):
         )
         cached = await self.cache.get(cache_key)
         if cached is not None:
-            logger.info("cache_hit", type="geocoding", query=q)
+            logger.debug("cache_hit", type="geocoding")
             return LocationSearchResult.model_validate(cached)
 
         params: dict[str, str | int | float | bool | None] = {
@@ -115,39 +212,17 @@ class OpenMeteoWeatherProvider(WeatherProvider):
             "format": "json",
         }
 
-        try:
-            resp = await self.client.get(self.GEOCODING_URL, params=params)
-            resp.raise_for_status()
-            data: dict[str, Any] = cast(dict[str, Any], resp.json())
-        except httpx.TimeoutException as exc:
-            logger.error("geocoding_timeout", query=q, error=str(exc))
-            raise OpenMeteoError(
-                "WEATHER_PROVIDER_TIMEOUT",
-                "El servicio de geocodificación no respondió a tiempo.",
-                status_code=504,
-            ) from exc
-        except httpx.HTTPStatusError as exc:
-            logger.error("geocoding_http_error", query=q, status=exc.response.status_code)
-            if exc.response.status_code == 429:
-                raise OpenMeteoError(
-                    "RATE_LIMITED",
-                    "Se ha alcanzado el límite de solicitudes de geocodificación.",
-                    status_code=429,
-                ) from exc
-            raise OpenMeteoError(
-                "WEATHER_PROVIDER_UNAVAILABLE",
-                "El proveedor de geocodificación devolvió un error.",
-                status_code=502,
-            ) from exc
-        except Exception as exc:
-            logger.error("geocoding_bad_response", query=q, error=str(exc))
-            raise OpenMeteoError(
-                "WEATHER_PROVIDER_BAD_RESPONSE",
-                "Respuesta no válida del proveedor de geocodificación.",
-                status_code=502,
-            ) from exc
+        if country_code:
+            params["countryCode"] = country_code.upper()
+        data = await self._request(self.GEOCODING_URL, params)
 
         raw_results = data.get("results") or []
+        if not isinstance(raw_results, list) or any(
+            not isinstance(loc, dict)
+            or not all(k in loc for k in ("id", "name", "latitude", "longitude"))
+            for loc in raw_results
+        ):
+            raise self._bad_response()
         items: list[LocationItem] = []
 
         for loc in raw_results:
@@ -183,7 +258,7 @@ class OpenMeteoWeatherProvider(WeatherProvider):
 
         result = LocationSearchResult(query=q, items=items)
         await self.cache.set(
-            cache_key, result.model_dump(), ttl=settings.GEOCODING_CACHE_TTL_SECONDS
+            cache_key, result.model_dump(), ttl=self.config.GEOCODING_CACHE_TTL_SECONDS
         )
         return result
 
@@ -213,44 +288,12 @@ class OpenMeteoWeatherProvider(WeatherProvider):
         cache_key = self.cache.build_key("forecast", **params)
         cached = await self.cache.get(cache_key)
         if cached is not None:
-            logger.info("cache_hit", type="forecast", lat=latitude, lon=longitude)
+            logger.debug("cache_hit", type="forecast")
             return cast(dict[str, Any], cached)
 
-        try:
-            resp = await self.client.get(self.FORECAST_URL, params=params)
-            resp.raise_for_status()
-            data: dict[str, Any] = cast(dict[str, Any], resp.json())
-        except httpx.TimeoutException as exc:
-            logger.error("forecast_timeout", lat=latitude, lon=longitude, error=str(exc))
-            raise OpenMeteoError(
-                "WEATHER_PROVIDER_TIMEOUT",
-                "El proveedor meteorológico no respondió dentro del tiempo límite.",
-                status_code=504,
-            ) from exc
-        except httpx.HTTPStatusError as exc:
-            logger.error(
-                "forecast_http_error", lat=latitude, lon=longitude, status=exc.response.status_code
-            )
-            if exc.response.status_code == 429:
-                raise OpenMeteoError(
-                    "RATE_LIMITED",
-                    "Se ha superado el límite de peticiones al servicio de clima.",
-                    status_code=429,
-                ) from exc
-            raise OpenMeteoError(
-                "WEATHER_PROVIDER_UNAVAILABLE",
-                "El proveedor de datos meteorológicos no está disponible temporalmente.",
-                status_code=502,
-            ) from exc
-        except Exception as exc:
-            logger.error("forecast_bad_response", lat=latitude, lon=longitude, error=str(exc))
-            raise OpenMeteoError(
-                "WEATHER_PROVIDER_BAD_RESPONSE",
-                "Respuesta no válida del proveedor de datos meteorológicos.",
-                status_code=502,
-            ) from exc
-
-        await self.cache.set(cache_key, data, ttl=settings.WEATHER_CACHE_TTL_SECONDS)
+        data = await self._request(self.FORECAST_URL, params)
+        self._validate_forecast(data, params)
+        await self.cache.set(cache_key, data, ttl=self.config.WEATHER_CACHE_TTL_SECONDS)
         return data
 
     async def get_current(
@@ -263,9 +306,9 @@ class OpenMeteoWeatherProvider(WeatherProvider):
         timezone: str = "auto",
     ) -> CurrentWeatherResponse:
         data = await self._fetch_forecast_raw(
-            latitude, longitude, temp_unit, wind_unit, precip_unit, timezone, forecast_days=1
+            latitude, longitude, temp_unit, wind_unit, precip_unit, timezone, forecast_days=7
         )
-        curr = data.get("current", {})
+        curr = self._section(data, "current")
         w_code = int(curr.get("weather_code", 0))
         is_day = bool(curr.get("is_day", 1))
         w_cond = get_wmo_condition(w_code, is_day)
@@ -312,7 +355,7 @@ class OpenMeteoWeatherProvider(WeatherProvider):
         precip_unit: PrecipitationUnit = PrecipitationUnit.MM,
         timezone: str = "auto",
     ) -> HourlyForecastResponse:
-        forecast_days = 3 if hours > 48 else (2 if hours > 24 else 1)
+        forecast_days = 7
         data = await self._fetch_forecast_raw(
             latitude,
             longitude,
@@ -322,7 +365,7 @@ class OpenMeteoWeatherProvider(WeatherProvider):
             timezone,
             forecast_days=forecast_days,
         )
-        hourly = data.get("hourly", {})
+        hourly = self._section(data, "hourly")
         times = hourly.get("time", [])
         temps = hourly.get("temperature_2m", [])
         p_probs = hourly.get("precipitation_probability", [])
@@ -333,9 +376,11 @@ class OpenMeteoWeatherProvider(WeatherProvider):
         w_dirs = hourly.get("wind_direction_10m", [])
 
         items: list[HourlyForecastItem] = []
-        limit = min(hours, len(times))
 
-        for i in range(limit):
+        current_time = data.get("current", {}).get("time", "")
+        start_time = current_time[:13] + ":00" if current_time else times[0]
+        indices = [i for i, time in enumerate(times) if time >= start_time][:hours]
+        for i in indices:
             code = int(w_codes[i]) if i < len(w_codes) else 0
             w_cond = get_wmo_condition(code, is_day=True)
             items.append(
@@ -374,9 +419,15 @@ class OpenMeteoWeatherProvider(WeatherProvider):
         timezone: str = "auto",
     ) -> DailyForecastResponse:
         data = await self._fetch_forecast_raw(
-            latitude, longitude, temp_unit, wind_unit, precip_unit, timezone, forecast_days=days
+            latitude,
+            longitude,
+            temp_unit,
+            wind_unit,
+            precip_unit,
+            timezone,
+            forecast_days=max(7, days),
         )
-        daily = data.get("daily", {})
+        daily = self._section(data, "daily")
         dates = daily.get("time", [])
         w_codes = daily.get("weather_code", [])
         t_maxs = daily.get("temperature_2m_max", [])
@@ -432,17 +483,15 @@ class OpenMeteoWeatherProvider(WeatherProvider):
         precip_unit: PrecipitationUnit = PrecipitationUnit.MM,
         timezone: str = "auto",
     ) -> WeatherOverview:
-        curr_task = self.get_current(
+        curr_res = await self.get_current(
             latitude, longitude, temp_unit, wind_unit, precip_unit, timezone
         )
-        hourly_task = self.get_hourly(
+        hourly_res = await self.get_hourly(
             latitude, longitude, 24, temp_unit, wind_unit, precip_unit, timezone
         )
-        daily_task = self.get_daily(
+        daily_res = await self.get_daily(
             latitude, longitude, 7, temp_unit, wind_unit, precip_unit, timezone
         )
-
-        curr_res, hourly_res, daily_res = await asyncio.gather(curr_task, hourly_task, daily_task)
 
         return WeatherOverview(
             location=curr_res.location,

@@ -86,3 +86,7 @@ variable "frontend_log_group_name" {
 variable "alb_dns_name" {
   type = string
 }
+
+variable "frontend_public_url" { type = string }
+variable "weather_api_mode" { type = string }
+variable "weather_secret_arn" { type = string }

@@ -1,0 +1,10 @@
+*
+!pyproject.toml
+!requirements.lock
+!app/
+!app/**
+**/__pycache__/
+**/*.pyc
+**/.env*
+**/*.pem
+**/*.key

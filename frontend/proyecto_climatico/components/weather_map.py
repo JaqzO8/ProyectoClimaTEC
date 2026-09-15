@@ -23,8 +23,19 @@ def weather_map() -> rx.Component:
                 color=Theme.TEXT_SECONDARY,
             ),
             rx.box(
-                rx.html(
-                    f'<iframe width="100%" height="280" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="{AppState.map_embed_url}" style="border-radius: 12px; border: 1px solid #E2E8F0;"></iframe>'
+                rx.cond(
+                    AppState.using_geolocation,
+                    rx.text(
+                        "Tu ubicación aproximada se muestra arriba. El mapa externo está desactivado para proteger tu ubicación."
+                    ),
+                    rx.el.iframe(
+                        src=AppState.map_embed_url,
+                        title="Mapa de la ubicación seleccionada",
+                        width="100%",
+                        height="280",
+                        loading="lazy",
+                        style={"border": "0"},
+                    ),
                 ),
                 width="100%",
                 height="280px",

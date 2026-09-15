@@ -1,18 +1,36 @@
+from typing import Any
+
 import reflex as rx
+from reflex.vars import ObjectVar
 
 from proyecto_climatico.state.app_state import AppState
 from proyecto_climatico.styles.theme import Theme
 
 
-def hourly_item(item: rx.Var[dict]) -> rx.Component:
+def hourly_item(item: ObjectVar[dict[str, Any]]) -> rx.Component:
     return rx.box(
         rx.vstack(
-            rx.text(item["time"].to(str), font_size="13px", color=Theme.TEXT_SECONDARY, font_weight="500"),
+            rx.text(
+                item["time"].to(str),
+                font_size="13px",
+                color=Theme.TEXT_SECONDARY,
+                font_weight="500",
+            ),
             rx.icon(tag="cloud_sun", size=24, color=Theme.PRIMARY),
-            rx.text(item["temperature"].to(str), font_size="16px", font_weight="700", color=Theme.TEXT_PRIMARY),
+            rx.text(
+                item["temperature"].to(str),
+                font_size="16px",
+                font_weight="700",
+                color=Theme.TEXT_PRIMARY,
+            ),
             rx.hstack(
                 rx.icon(tag="droplet", size=12, color=Theme.ACCENT),
-                rx.text(item["precipitation_probability"].to(str) + "%", font_size="12px", color=Theme.ACCENT, font_weight="600"),
+                rx.text(
+                    item["precipitation_probability"].to(str) + "%",
+                    font_size="12px",
+                    color=Theme.ACCENT,
+                    font_weight="600",
+                ),
                 spacing="1",
                 align_items="center",
             ),
@@ -33,7 +51,9 @@ def hourly_forecast() -> rx.Component:
         rx.vstack(
             rx.hstack(
                 rx.icon(tag="clock", size=20, color=Theme.PRIMARY),
-                rx.heading("Pronóstico por horas (próximas 24h)", size="5", color=Theme.TEXT_PRIMARY),
+                rx.heading(
+                    "Pronóstico por horas (próximas 24h)", size="5", color=Theme.TEXT_PRIMARY
+                ),
                 spacing="2",
                 align_items="center",
             ),
@@ -41,17 +61,20 @@ def hourly_forecast() -> rx.Component:
                 rx.foreach(AppState.hourly_list, hourly_item),
                 overflow_x="auto",
                 width="100%",
+                min_width="0",
                 padding_bottom="12px",
                 spacing="3",
             ),
             spacing="4",
             align_items="start",
             width="100%",
+            min_width="0",
         ),
         background=Theme.BACKGROUND,
         border=f"1px solid {Theme.BORDER}",
         border_radius=Theme.RADIUS_CARD,
         padding="24px",
         width="100%",
+        min_width="0",
         box_shadow="0 4px 6px -1px rgba(0, 0, 0, 0.05)",
     )

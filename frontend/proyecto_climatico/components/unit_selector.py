@@ -16,16 +16,22 @@ def unit_selector_dialog() -> rx.Component:
             rx.vstack(
                 # Temperature
                 rx.vstack(
-                    rx.text("Temperatura", font_weight="600", font_size="14px", color=Theme.TEXT_PRIMARY),
+                    rx.text(
+                        "Temperatura", font_weight="600", font_size="14px", color=Theme.TEXT_PRIMARY
+                    ),
                     rx.hstack(
                         rx.button(
                             "Celsius (°C)",
-                            variant=rx.cond(AppState.temperature_unit == "celsius", "solid", "outline"),
+                            variant=rx.cond(
+                                AppState.temperature_unit == "celsius", "solid", "outline"
+                            ),
                             on_click=AppState.set_temperature_unit("celsius"),
                         ),
                         rx.button(
                             "Fahrenheit (°F)",
-                            variant=rx.cond(AppState.temperature_unit == "fahrenheit", "solid", "outline"),
+                            variant=rx.cond(
+                                AppState.temperature_unit == "fahrenheit", "solid", "outline"
+                            ),
                             on_click=AppState.set_temperature_unit("fahrenheit"),
                         ),
                         spacing="2",
@@ -35,7 +41,12 @@ def unit_selector_dialog() -> rx.Component:
                 ),
                 # Wind speed
                 rx.vstack(
-                    rx.text("Velocidad del viento", font_weight="600", font_size="14px", color=Theme.TEXT_PRIMARY),
+                    rx.text(
+                        "Velocidad del viento",
+                        font_weight="600",
+                        font_size="14px",
+                        color=Theme.TEXT_PRIMARY,
+                    ),
                     rx.hstack(
                         rx.button(
                             "km/h",
@@ -59,16 +70,25 @@ def unit_selector_dialog() -> rx.Component:
                 ),
                 # Precipitation
                 rx.vstack(
-                    rx.text("Precipitación", font_weight="600", font_size="14px", color=Theme.TEXT_PRIMARY),
+                    rx.text(
+                        "Precipitación",
+                        font_weight="600",
+                        font_size="14px",
+                        color=Theme.TEXT_PRIMARY,
+                    ),
                     rx.hstack(
                         rx.button(
                             "Milímetros (mm)",
-                            variant=rx.cond(AppState.precipitation_unit == "mm", "solid", "outline"),
+                            variant=rx.cond(
+                                AppState.precipitation_unit == "mm", "solid", "outline"
+                            ),
                             on_click=AppState.set_precipitation_unit("mm"),
                         ),
                         rx.button(
                             "Pulgadas (inch)",
-                            variant=rx.cond(AppState.precipitation_unit == "inch", "solid", "outline"),
+                            variant=rx.cond(
+                                AppState.precipitation_unit == "inch", "solid", "outline"
+                            ),
                             on_click=AppState.set_precipitation_unit("inch"),
                         ),
                         spacing="2",
@@ -81,7 +101,12 @@ def unit_selector_dialog() -> rx.Component:
             ),
             rx.hstack(
                 rx.dialog.close(
-                    rx.button("Cerrar", variant="soft", color_scheme="gray", on_click=AppState.toggle_unit_modal),
+                    rx.button(
+                        "Cerrar",
+                        variant="soft",
+                        color_scheme="gray",
+                        on_click=AppState.toggle_unit_modal,
+                    ),
                 ),
                 justify="end",
                 margin_top="24px",

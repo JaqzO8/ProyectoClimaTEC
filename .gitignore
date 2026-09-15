@@ -45,16 +45,35 @@ frontend/.web/
 
 # Environment & Secrets
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
 *.pem
 *.key
+*.p12
+*.pfx
+.aws/
+credentials
+credentials.json
+secrets.json
 
 # Terraform
 **/.terraform/
 *.tfstate
 *.tfstate.*
-.terraform.lock.hcl
+*.tfvars
+*.tfvars.json
+*.tfplan
+crash.log
+crash.*.log
+
+# Local validation tools and reports
+.tools/
+test-results/
+playwright-report/
+mutants/
+frontend/assets/.state/
+node_modules/
 
 # Docker
 docker-compose.override.yml

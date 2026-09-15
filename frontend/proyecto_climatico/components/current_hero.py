@@ -31,9 +31,21 @@ def current_weather_hero() -> rx.Component:
             rx.hstack(
                 rx.vstack(
                     rx.badge("Condiciones actuales", color_scheme="blue", variant="soft"),
-                    rx.heading(AppState.selected_location["name"], size="8", color=Theme.TEXT_PRIMARY),
-                    rx.text(AppState.selected_location["display_name"], font_size="14px", color=Theme.TEXT_SECONDARY),
-                    rx.text(f"Actualizado: {AppState.observed_at_display}", font_size="12px", color=Theme.CLOUDY),
+                    rx.heading(
+                        AppState.selected_location["name"],
+                        size=rx.breakpoints(initial="6", sm="8"),
+                        color=Theme.TEXT_PRIMARY,
+                    ),
+                    rx.text(
+                        AppState.selected_location["display_name"],
+                        font_size="14px",
+                        color=Theme.TEXT_SECONDARY,
+                    ),
+                    rx.text(
+                        f"Actualizado: {AppState.observed_at_display}",
+                        font_size="12px",
+                        color=Theme.CLOUDY,
+                    ),
                     align_items="start",
                     spacing="1",
                 ),
@@ -45,13 +57,18 @@ def current_weather_hero() -> rx.Component:
             rx.hstack(
                 rx.text(
                     AppState.current_temp_display,
-                    font_size="64px",
+                    font_size=rx.breakpoints(initial="48px", sm="64px"),
                     font_weight="800",
                     color=Theme.TEXT_PRIMARY,
                     line_height="1",
                 ),
                 rx.vstack(
-                    rx.text(AppState.current_weather_label, font_size="20px", font_weight="600", color=Theme.PRIMARY),
+                    rx.text(
+                        AppState.current_weather_label,
+                        font_size="20px",
+                        font_weight="600",
+                        color=Theme.PRIMARY,
+                    ),
                     rx.text(
                         AppState.current_apparent_temp_display,
                         font_size="14px",
@@ -61,6 +78,7 @@ def current_weather_hero() -> rx.Component:
                     spacing="0",
                 ),
                 spacing="5",
+                flex_wrap="wrap",
                 align_items="center",
                 margin_top="16px",
                 margin_bottom="24px",
@@ -72,7 +90,7 @@ def current_weather_hero() -> rx.Component:
                 weather_metric_card("cloud_rain", "Precipitación", AppState.current_precip_display),
                 weather_metric_card("gauge", "Presión", AppState.current_pressure_display),
                 weather_metric_card("cloud", "Nubosidad", AppState.current_cloud_display),
-                columns="3",
+                columns=rx.breakpoints(initial="1", sm="2", md="3"),
                 spacing="3",
                 width="100%",
             ),
@@ -82,7 +100,7 @@ def current_weather_hero() -> rx.Component:
         background=Theme.BACKGROUND,
         border=f"1px solid {Theme.BORDER}",
         border_radius=Theme.RADIUS_CARD,
-        padding="28px",
+        padding=rx.breakpoints(initial="20px", sm="28px"),
         width="100%",
         box_shadow="0 4px 6px -1px rgba(0, 0, 0, 0.05)",
     )

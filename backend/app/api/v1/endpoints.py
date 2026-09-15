@@ -1,13 +1,10 @@
-import uuid
-
-from fastapi import APIRouter, Query, Request, status
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.application.use_cases import WeatherUseCases
 from app.domain.models import (
     CurrentWeatherResponse,
     DailyForecastResponse,
-    ErrorDetail,
     ErrorResponse,
     HourlyForecastResponse,
     LocationSearchResult,
@@ -16,22 +13,11 @@ from app.domain.models import (
     WeatherOverview,
     WindSpeedUnit,
 )
-from app.infrastructure.open_meteo import OpenMeteoError, OpenMeteoWeatherProvider
+from app.infrastructure.open_meteo import OpenMeteoWeatherProvider
 
 router = APIRouter()
 _provider = OpenMeteoWeatherProvider()
 _use_cases = WeatherUseCases(provider=_provider)
-
-
-def build_error_response(code: str, message: str, req_id: str | None = None) -> JSONResponse:
-    return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST
-        if code == "VALIDATION_ERROR"
-        else status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content=ErrorResponse(
-            error=ErrorDetail(code=code, message=message, request_id=req_id)
-        ).model_dump(),
-    )
 
 
 @router.get(
@@ -49,23 +35,14 @@ async def search_locations(
         ..., min_length=2, max_length=120, description="Término de búsqueda de ubicación"
     ),
     country_code: str | None = Query(
-        None, min_length=2, max_length=2, description="Código ISO alpha-2"
+        None, min_length=2, max_length=2, pattern="^[A-Za-z]{2}$", description="Código ISO alpha-2"
     ),
-    language: str = Query("es", description="Idioma de los resultados"),
+    language: str = Query("es", pattern="^[a-z]{2}$", description="Idioma de los resultados"),
     limit: int = Query(10, ge=1, le=20, description="Límite de resultados"),
 ) -> LocationSearchResult | JSONResponse:
-    try:
-        return await _use_cases.search_locations(
-            q=q, country_code=country_code, language=language, limit=limit
-        )
-    except OpenMeteoError as exc:
-        req_id = getattr(request.state, "request_id", str(uuid.uuid4()))
-        return JSONResponse(
-            status_code=exc.status_code,
-            content=ErrorResponse(
-                error=ErrorDetail(code=exc.code, message=exc.message, request_id=req_id)
-            ).model_dump(),
-        )
+    return await _use_cases.search_locations(
+        q=q, country_code=country_code, language=language, limit=limit
+    )
 
 
 @router.get(
@@ -80,25 +57,16 @@ async def get_current_weather(
     temperature_unit: TemperatureUnit = Query(TemperatureUnit.CELSIUS),
     wind_speed_unit: WindSpeedUnit = Query(WindSpeedUnit.KMH),
     precipitation_unit: PrecipitationUnit = Query(PrecipitationUnit.MM),
-    timezone: str = Query("auto"),
+    timezone: str = Query("auto", min_length=1, max_length=64, pattern="^[A-Za-z_+/-]+$"),
 ) -> CurrentWeatherResponse | JSONResponse:
-    try:
-        return await _use_cases.get_current_weather(
-            latitude=latitude,
-            longitude=longitude,
-            temp_unit=temperature_unit,
-            wind_unit=wind_speed_unit,
-            precip_unit=precipitation_unit,
-            timezone=timezone,
-        )
-    except OpenMeteoError as exc:
-        req_id = getattr(request.state, "request_id", str(uuid.uuid4()))
-        return JSONResponse(
-            status_code=exc.status_code,
-            content=ErrorResponse(
-                error=ErrorDetail(code=exc.code, message=exc.message, request_id=req_id)
-            ).model_dump(),
-        )
+    return await _use_cases.get_current_weather(
+        latitude=latitude,
+        longitude=longitude,
+        temp_unit=temperature_unit,
+        wind_unit=wind_speed_unit,
+        precip_unit=precipitation_unit,
+        timezone=timezone,
+    )
 
 
 @router.get(
@@ -114,26 +82,17 @@ async def get_hourly_forecast(
     temperature_unit: TemperatureUnit = Query(TemperatureUnit.CELSIUS),
     wind_speed_unit: WindSpeedUnit = Query(WindSpeedUnit.KMH),
     precipitation_unit: PrecipitationUnit = Query(PrecipitationUnit.MM),
-    timezone: str = Query("auto"),
+    timezone: str = Query("auto", min_length=1, max_length=64, pattern="^[A-Za-z_+/-]+$"),
 ) -> HourlyForecastResponse | JSONResponse:
-    try:
-        return await _use_cases.get_hourly_forecast(
-            latitude=latitude,
-            longitude=longitude,
-            hours=hours,
-            temp_unit=temperature_unit,
-            wind_unit=wind_speed_unit,
-            precip_unit=precipitation_unit,
-            timezone=timezone,
-        )
-    except OpenMeteoError as exc:
-        req_id = getattr(request.state, "request_id", str(uuid.uuid4()))
-        return JSONResponse(
-            status_code=exc.status_code,
-            content=ErrorResponse(
-                error=ErrorDetail(code=exc.code, message=exc.message, request_id=req_id)
-            ).model_dump(),
-        )
+    return await _use_cases.get_hourly_forecast(
+        latitude=latitude,
+        longitude=longitude,
+        hours=hours,
+        temp_unit=temperature_unit,
+        wind_unit=wind_speed_unit,
+        precip_unit=precipitation_unit,
+        timezone=timezone,
+    )
 
 
 @router.get(
@@ -149,26 +108,17 @@ async def get_daily_forecast(
     temperature_unit: TemperatureUnit = Query(TemperatureUnit.CELSIUS),
     wind_speed_unit: WindSpeedUnit = Query(WindSpeedUnit.KMH),
     precipitation_unit: PrecipitationUnit = Query(PrecipitationUnit.MM),
-    timezone: str = Query("auto"),
+    timezone: str = Query("auto", min_length=1, max_length=64, pattern="^[A-Za-z_+/-]+$"),
 ) -> DailyForecastResponse | JSONResponse:
-    try:
-        return await _use_cases.get_daily_forecast(
-            latitude=latitude,
-            longitude=longitude,
-            days=days,
-            temp_unit=temperature_unit,
-            wind_unit=wind_speed_unit,
-            precip_unit=precipitation_unit,
-            timezone=timezone,
-        )
-    except OpenMeteoError as exc:
-        req_id = getattr(request.state, "request_id", str(uuid.uuid4()))
-        return JSONResponse(
-            status_code=exc.status_code,
-            content=ErrorResponse(
-                error=ErrorDetail(code=exc.code, message=exc.message, request_id=req_id)
-            ).model_dump(),
-        )
+    return await _use_cases.get_daily_forecast(
+        latitude=latitude,
+        longitude=longitude,
+        days=days,
+        temp_unit=temperature_unit,
+        wind_unit=wind_speed_unit,
+        precip_unit=precipitation_unit,
+        timezone=timezone,
+    )
 
 
 @router.get(
@@ -183,22 +133,13 @@ async def get_weather_overview(
     temperature_unit: TemperatureUnit = Query(TemperatureUnit.CELSIUS),
     wind_speed_unit: WindSpeedUnit = Query(WindSpeedUnit.KMH),
     precipitation_unit: PrecipitationUnit = Query(PrecipitationUnit.MM),
-    timezone: str = Query("auto"),
+    timezone: str = Query("auto", min_length=1, max_length=64, pattern="^[A-Za-z_+/-]+$"),
 ) -> WeatherOverview | JSONResponse:
-    try:
-        return await _use_cases.get_weather_overview(
-            latitude=latitude,
-            longitude=longitude,
-            temp_unit=temperature_unit,
-            wind_unit=wind_speed_unit,
-            precip_unit=precipitation_unit,
-            timezone=timezone,
-        )
-    except OpenMeteoError as exc:
-        req_id = getattr(request.state, "request_id", str(uuid.uuid4()))
-        return JSONResponse(
-            status_code=exc.status_code,
-            content=ErrorResponse(
-                error=ErrorDetail(code=exc.code, message=exc.message, request_id=req_id)
-            ).model_dump(),
-        )
+    return await _use_cases.get_weather_overview(
+        latitude=latitude,
+        longitude=longitude,
+        temp_unit=temperature_unit,
+        wind_unit=wind_speed_unit,
+        precip_unit=precipitation_unit,
+        timezone=timezone,
+    )

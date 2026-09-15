@@ -1,39 +1,30 @@
-.PHONY: help setup lint format test test-cov docker-up docker-down tf-validate
-
-help:
-	@echo "Comandos disponibles:"
-	@echo "  make setup        - Crear venv e instalar dependencias"
-	@echo "  make lint         - Ejecutar linters (ruff, mypy)"
-	@echo "  make format       - Dar formato al código (ruff format)"
-	@echo "  make test         - Ejecutar pruebas automatizadas"
-	@echo "  make test-cov     - Pruebas con informe de cobertura"
-	@echo "  make docker-up    - Levantar contenedores Docker"
-	@echo "  make docker-down  - Detener contenedores Docker"
-	@echo "  make tf-validate  - Validar Terraform"
-
+.PHONY: setup lint format test test-cov mutation docker-up docker-down tf-validate
 setup:
-	python -m venv .venv
-	.venv/bin/pip install -r backend/requirements.txt || .venv/Scripts/pip install -r backend/requirements.txt
-
+	python -m pip install --require-hashes -r backend/requirements-dev.lock
+	python -m pip install --require-hashes -r frontend/requirements-dev.lock
+	python -m pip install --no-deps -e backend -e frontend
 lint:
-	python -m ruff check backend frontend
-	python -m mypy backend
-
+	python -m ruff check backend frontend scripts tests/e2e
+	python -m ruff format --check backend frontend scripts tests/e2e
+	python -m mypy --config-file backend/pyproject.toml backend/app
+	python -m mypy --config-file frontend/pyproject.toml frontend/proyecto_climatico frontend/rxconfig.py frontend/serve.py
 format:
-	python -m ruff format backend frontend
-
+	python -m ruff format backend frontend scripts tests/e2e
 test:
 	python -m pytest backend/tests
-
+	python -m pytest frontend/tests
 test-cov:
-	python -m pytest backend/tests --cov=app --cov-report=term-missing
-
+	python -m pytest backend/tests --cov=app --cov-report=term-missing --cov-fail-under=85
+	python -m pytest frontend/tests --cov=proyecto_climatico.state --cov=proyecto_climatico.services --cov-fail-under=80
+mutation:
+	python scripts/mutation_smoke.py
 docker-up:
-	docker compose up --build -d
-
+	docker compose up --build --wait
 docker-down:
 	docker compose down
-
 tf-validate:
-	terraform -chdir=infra/terraform/envs/dev init -backend=false
+	terraform fmt -check -recursive infra/terraform
+	terraform -chdir=infra/terraform/envs/dev init -backend=false -lockfile=readonly
 	terraform -chdir=infra/terraform/envs/dev validate
+	terraform -chdir=infra/terraform/envs/prod init -backend=false -lockfile=readonly
+	terraform -chdir=infra/terraform/envs/prod validate

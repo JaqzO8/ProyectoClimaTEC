@@ -83,4 +83,6 @@ app = rx.App(
         panel_background="solid",
     )
 )
-app.add_page(index, title="ProyectoClimatico — Aplicación Meteorológica Global", on_load=AppState.on_load)
+app.add_page(
+    index, title="ProyectoClimatico — Aplicación Meteorológica Global", on_load=AppState.on_load
+)

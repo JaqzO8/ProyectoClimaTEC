@@ -1,0 +1,14 @@
+*
+!pyproject.toml
+!requirements.lock
+!rxconfig.py
+!serve.py
+!reflex.lock/
+!reflex.lock/**
+!proyecto_climatico/
+!proyecto_climatico/**
+**/__pycache__/
+**/*.pyc
+**/.env*
+**/*.pem
+**/*.key

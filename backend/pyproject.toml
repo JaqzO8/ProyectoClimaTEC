@@ -3,7 +3,7 @@ name = "proyectoclimatico-backend"
 version = "0.1.0"
 description = "FastAPI Backend for ProyectoClimatico"
 authors = [{ name = "ProyectoClimatico Team" }]
-requires-python = ">=3.11"
+requires-python = ">=3.13,<3.14"
 dependencies = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.28.0",
@@ -23,6 +23,9 @@ dev = [
     "ruff>=0.3.0",
     "mypy>=1.8.0",
     "mutmut>=2.4.4",
+    "hypothesis>=6.0",
+    "types-cachetools>=5.3",
+    "pip-audit>=2.9",
 ]
 
 [build-system]
@@ -30,7 +33,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py313"
 line-length = 100
 
 [tool.ruff.lint]
@@ -38,7 +41,8 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "C4"]
 ignore = ["B008", "E501", "E402"]
 
 [tool.mypy]
-python_version = "3.11"
+plugins = ["pydantic.mypy"]
+python_version = "3.13"
 strict = true
 ignore_missing_imports = true
 disallow_untyped_defs = true
@@ -48,3 +52,10 @@ check_untyped_defs = true
 minversion = "8.0"
 addopts = "-ra -q --asyncio-mode=auto"
 testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.mutmut]
+paths_to_mutate = ["app/domain/wmo.py", "app/application/use_cases.py"]
+tests_dir = ["tests/"]

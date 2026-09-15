@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars (ignored by Git); real values are required.
+aws_region = ""
+github_repo = "JaqzO8/ProyectoClimaTEC"
+github_environment = "production"
+github_oidc_provider_arn = ""
+frontend_public_url = ""
+certificate_arn = ""
+weather_api_mode = "commercial"
+weather_secret_arn = ""
+# First provision with zero tasks; after images are published use at least 2.
+desired_count_backend = 0
+desired_count_frontend = 0

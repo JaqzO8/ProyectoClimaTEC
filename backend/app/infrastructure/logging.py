@@ -12,6 +12,9 @@ def setup_logging(log_level: str = "INFO") -> None:
         stream=sys.stdout,
         level=numeric_level,
     )
+    # HTTP clients otherwise log full URLs, including provider query-string credentials.
+    for name in ("httpx", "httpcore", "uvicorn.access"):
+        logging.getLogger(name).setLevel(logging.CRITICAL)
 
     structlog.configure(
         processors=[

@@ -9,7 +9,7 @@ def app_header(on_open_units) -> rx.Component:
             rx.icon(tag="cloud_sun", size=32, color=Theme.PRIMARY),
             rx.heading(
                 "ProyectoClimatico",
-                size="6",
+                size=rx.breakpoints(initial="4", sm="6"),
                 color=Theme.TEXT_PRIMARY,
                 font_weight="bold",
             ),
@@ -31,6 +31,8 @@ def app_header(on_open_units) -> rx.Component:
         ),
         width="100%",
         justify="between",
+        flex_wrap="wrap",
+        gap="12px",
         align_items="center",
         padding="16px 24px",
         background=Theme.BACKGROUND,

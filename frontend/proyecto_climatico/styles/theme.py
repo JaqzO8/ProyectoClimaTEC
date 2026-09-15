@@ -21,9 +21,7 @@ class Theme:
     SNOW = "#7DD3FC"
 
     # Typography
-    FONT_FAMILY = (
-        'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-    )
+    FONT_FAMILY = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
 
     # Radii
     RADIUS_CARD = "16px"

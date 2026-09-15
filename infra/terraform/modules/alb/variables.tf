@@ -19,3 +19,6 @@ variable "public_subnet_ids" {
 variable "alb_security_group_id" {
   type = string
 }
+
+variable "enable_https" { type = bool }
+variable "certificate_arn" { type = string }

@@ -91,6 +91,7 @@ async def test_hourly_weather_endpoint(async_client, respx_mock):
         "hourly": {
             "time": ["2026-09-11T14:00"],
             "temperature_2m": [22.0],
+            "relative_humidity_2m": [80],
             "precipitation_probability": [10],
             "precipitation": [0.0],
             "weather_code": [1],
@@ -166,6 +167,7 @@ async def test_overview_weather_endpoint(async_client, respx_mock):
         "hourly": {
             "time": ["2026-09-11T14:00"],
             "temperature_2m": [22.0],
+            "relative_humidity_2m": [80],
             "precipitation_probability": [10],
             "precipitation": [0.0],
             "weather_code": [1],

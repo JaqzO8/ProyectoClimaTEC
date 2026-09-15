@@ -1,31 +1,5 @@
-# Terraform Infrastructure for ProyectoClimatico
+# Terraform
 
-This directory contains Infrastructure as Code (IaC) to deploy **ProyectoClimatico** on AWS using Amazon ECS Fargate, Application Load Balancer (ALB), Amazon ECR, IAM, and CloudWatch.
+La guía completa de configuración, Secrets Manager, OIDC, HTTPS, estado remoto y rollback está en [docs/DEPLOYMENT.md](../../docs/DEPLOYMENT.md).
 
-## Structure
-
-```text
-infra/terraform/
-├─ modules/
-│  ├─ network/       # VPC, Subnets, Internet Gateway, Security Groups
-│  ├─ ecr/           # ECR Container Repositories for backend & frontend
-│  ├─ alb/           # Application Load Balancer & Target Groups
-│  ├─ ecs/           # ECS Fargate Cluster, Task Definitions & Services
-│  ├─ iam/           # Task Execution & OIDC Roles
-│  └─ observability/ # CloudWatch Log Groups
-└─ envs/
-   ├─ dev/           # Development environment deployment
-   └─ prod/          # Production environment deployment
-```
-
-## Validation Commands
-
-```bash
-# Format check
-terraform fmt -check -recursive
-
-# Initialize & Validate
-cd envs/dev
-terraform init -backend=false
-terraform validate
-```
+Entornos: `envs/dev` y `envs/prod`. Nunca versionar `.tfvars`, `.tfstate`, planes ni valores secretos. Los `.terraform.lock.hcl` sí se versionan.

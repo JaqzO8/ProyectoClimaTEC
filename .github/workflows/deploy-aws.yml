@@ -1,51 +1,136 @@
 name: Deploy to AWS ECS
 
 on:
-  push:
-    branches: [ main ]
+  workflow_run:
+    workflows: ["CI Quality Gates"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub environment with AWS deployment variables
+        type: choice
+        options: [development, production]
+        default: production
 
 permissions:
-  id-token: write
   contents: read
 
+concurrency:
+  group: deploy-${{ inputs.environment || 'production' }}
+  cancel-in-progress: false
+
 jobs:
-  deploy:
+  configuration:
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'production' }}
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+      sha: ${{ steps.check.outputs.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Require real AWS configuration
+        id: check
+        env:
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+          ECS_BACKEND_SERVICE: ${{ vars.ECS_BACKEND_SERVICE }}
+          ECS_FRONTEND_SERVICE: ${{ vars.ECS_FRONTEND_SERVICE }}
+          ECR_BACKEND_REPOSITORY: ${{ vars.ECR_BACKEND_REPOSITORY }}
+          ECR_FRONTEND_REPOSITORY: ${{ vars.ECR_FRONTEND_REPOSITORY }}
+          FRONTEND_PUBLIC_URL: ${{ vars.FRONTEND_PUBLIC_URL }}
+          WEATHER_API_MODE: ${{ vars.OPEN_METEO_API_MODE }}
+          WEATHER_SECRET_ARN: ${{ vars.OPEN_METEO_SECRET_ARN }}
+          EVENT: ${{ github.event_name }}
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        shell: bash
+        run: |
+          missing=()
+          for name in AWS_ROLE_ARN AWS_REGION ECS_CLUSTER ECS_BACKEND_SERVICE ECS_FRONTEND_SERVICE ECR_BACKEND_REPOSITORY ECR_FRONTEND_REPOSITORY FRONTEND_PUBLIC_URL WEATHER_API_MODE; do
+            [[ -n "${!name}" ]] || missing+=("$name")
+          done
+          if [[ "$WEATHER_API_MODE" == "commercial" && -z "$WEATHER_SECRET_ARN" ]]; then
+            missing+=("OPEN_METEO_SECRET_ARN")
+          fi
+          if (( ${#missing[@]} )); then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::AWS deployment pending configuration: ${missing[*]}"
+            echo "### AWS deployment pending" >> "$GITHUB_STEP_SUMMARY"
+            printf 'Missing real configuration: %s\n' "${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
+            [[ "$EVENT" != "workflow_dispatch" ]] || exit 1
+          else
+            [[ "$WEATHER_API_MODE" == "free" || "$WEATHER_API_MODE" == "commercial" ]]
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Configure AWS Credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+  deploy:
+    needs: configuration
+    if: needs.configuration.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: ${{ inputs.environment || 'production' }}
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+      ECS_BACKEND_SERVICE: ${{ vars.ECS_BACKEND_SERVICE }}
+      ECS_FRONTEND_SERVICE: ${{ vars.ECS_FRONTEND_SERVICE }}
+      ECR_BACKEND_REPOSITORY: ${{ vars.ECR_BACKEND_REPOSITORY }}
+      ECR_FRONTEND_REPOSITORY: ${{ vars.ECR_FRONTEND_REPOSITORY }}
+      FRONTEND_PUBLIC_URL: ${{ vars.FRONTEND_PUBLIC_URL }}
+      OPEN_METEO_API_MODE: ${{ vars.OPEN_METEO_API_MODE }}
+      OPEN_METEO_SECRET_ARN: ${{ vars.OPEN_METEO_SECRET_ARN }}
+      IMAGE_TAG: ${{ needs.configuration.outputs.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN || 'arn:aws:iam::123456789012:role/proyectoclimatico-dev-github-oidc-role' }}
-          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
-
-      - name: Log in to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build and Push Backend Image
+          ref: ${{ needs.configuration.outputs.sha }}
+      - name: Verify successful CI for this main commit
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          docker build -t $ECR_REGISTRY/proyectoclimatico-backend:$IMAGE_TAG ./backend
-          docker tag $ECR_REGISTRY/proyectoclimatico-backend:$IMAGE_TAG $ECR_REGISTRY/proyectoclimatico-backend:latest
-          docker push $ECR_REGISTRY/proyectoclimatico-backend:$IMAGE_TAG
-          docker push $ECR_REGISTRY/proyectoclimatico-backend:latest
-
-      - name: Build and Push Frontend Image
+          test "$(gh run list --workflow ci.yml --branch main --commit "$IMAGE_TAG" --event push --status success --json conclusion --jq 'length')" -gt 0
+          test "$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq '.object.sha')" = "$IMAGE_TAG"
+      - uses: aws-actions/configure-aws-credentials@cabfdba3510de1431bac9dba27511d97497fc100 # v5
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: climate-${{ github.run_id }}
+      - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
+        id: ecr
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build and publish immutable commit images
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
-          docker build -t $ECR_REGISTRY/proyectoclimatico-frontend:$IMAGE_TAG ./frontend
-          docker tag $ECR_REGISTRY/proyectoclimatico-frontend:$IMAGE_TAG $ECR_REGISTRY/proyectoclimatico-frontend:latest
-          docker push $ECR_REGISTRY/proyectoclimatico-frontend:$IMAGE_TAG
-          docker push $ECR_REGISTRY/proyectoclimatico-frontend:latest
-
-      - name: Deploy to ECS Fargate
+          for component in backend frontend; do
+            if [[ "$component" == "backend" ]]; then repository="$ECR_BACKEND_REPOSITORY"; else repository="$ECR_FRONTEND_REPOSITORY"; fi
+            if ! aws ecr describe-images --repository-name "$repository" --image-ids imageTag="$IMAGE_TAG" > /dev/null 2>&1; then
+              docker build --build-arg "FRONTEND_PUBLIC_URL=$FRONTEND_PUBLIC_URL" -t "$ECR_REGISTRY/$repository:$IMAGE_TAG" "./$component"
+              docker push "$ECR_REGISTRY/$repository:$IMAGE_TAG"
+            fi
+          done
+      - name: Register new task definitions and update services
+        id: update
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: python scripts/deploy_ecs.py
+      - name: Wait for stability and verify deployment
         run: |
-          aws ecs update-service --cluster proyectoclimatico-dev-cluster --service proyectoclimatico-dev-backend-svc --force-new-deployment
-          aws ecs update-service --cluster proyectoclimatico-dev-cluster --service proyectoclimatico-dev-frontend-svc --force-new-deployment
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_BACKEND_SERVICE" "$ECS_FRONTEND_SERVICE"
+          python scripts/verify_deployment.py
+      - name: Roll back services after an unsuccessful rollout
+        if: failure() && steps.update.outputs.started == 'true'
+        run: python scripts/deploy_ecs.py --rollback
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "Deployed commit $IMAGE_TAG to $FRONTEND_PUBLIC_URL" >> "$GITHUB_STEP_SUMMARY"

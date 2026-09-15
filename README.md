@@ -1,199 +1,197 @@
 # ProyectoClimatico
 
-Aplicación web global para consultar clima actual y pronósticos meteorológicos de ubicaciones de cualquier país, construida con **Python** (FastAPI en el backend y Reflex en el frontend).
+Aplicación meteorológica en Python 3.13: **FastAPI + Reflex + Open-Meteo**.
+Infraestructura AWS con Terraform (ECS Fargate, ECR, ALB, IAM y CloudWatch).
 
----
-
-## Arquitectura del sistema
-
-```text
-Browser / Client (HTML/JS)
-         |
-         v
-Frontend Reflex (Port 3000)
-         |
-         | HTTPS / API REST
-         v
-FastAPI Backend (Port 8000)
-         |
-         +--> Application Services / Use Cases
-         |
-         +--> WeatherProvider Protocol
-                 |
-                 +--> OpenMeteoWeatherProvider (Adapter)
-```
-
-### Capas Clean Architecture (Backend)
-- `domain`: Modelos Pydantic v2, enums de unidades, catálogo de WMO codes.
-- `application`: Puerto `WeatherProvider` y casos de uso (`SearchLocations`, `GetCurrentWeather`, `GetHourlyForecast`, `GetDailyForecast`, `GetWeatherOverview`).
-- `infrastructure`: Adaptador de Open-Meteo API, caché TTL en memoria (`TTLMemoryCache`), estructuración de logs JSON (`structlog`), configuración `pydantic-settings`.
-- `api/v1`: Controladores FastAPI, documentación OpenAPI/Swagger, middleware de seguridad y normalización de respuestas de error.
-
----
-
-## Stack tecnológico
-
-- **Lenguaje principal**: Python 3.11+ / 3.13+
-- **Backend Framework**: FastAPI
-- **Frontend Framework**: Reflex (Python UI)
-- **Cliente HTTP Async**: HTTPX
-- **Proveedor Meteorológico**: Open-Meteo API (Geocoding & Forecast)
-- **Caché**: TTL Memory Cache (`cachetools`)
-- **Contenedores**: Docker & Docker Compose
-- **IaC (Infraestructura como código)**: Terraform (AWS ECS Fargate, ALB, ECR, IAM, CloudWatch)
-- **CI/CD**: GitHub Actions (OIDC Auth para AWS, Docker build/push, Quality Gates)
-
----
-
-## Requisitos previos
-
-- Python 3.11+ (para ejecución directa sin Docker)
-- Docker & Docker Compose (para ejecución en contenedores)
-- Terraform 1.5+ (para despliegue en AWS)
-
----
-
-## Variables de entorno
-
-Copia `.env.example` a `.env`:
-
-```env
-APP_ENV=development
-APP_NAME=ProyectoClimatico
-API_V1_PREFIX=/api/v1
-WEATHER_PROVIDER=open_meteo
-WEATHER_TIMEOUT_SECONDS=5
-WEATHER_CACHE_TTL_SECONDS=300
-GEOCODING_CACHE_TTL_SECONDS=1800
-CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-LOG_LEVEL=INFO
-BACKEND_PUBLIC_URL=http://localhost:8000
-FRONTEND_PUBLIC_URL=http://localhost:3000
-```
-
----
-
-## Instalación y ejecución local
-
-### Opción 1: Con Docker Compose (Recomendado)
+## Ejecutar con Docker
 
 ```bash
-# Levantar el stack completo
-docker compose up --build -d
+cp .env.example .env
+docker compose up --build --wait
+```
 
-# Verificar estado de salud de los contenedores
-docker compose ps
+En PowerShell, usa `Copy-Item .env.example .env`.
 
-# Ver logs
-docker compose logs -f backend
-docker compose logs -f frontend
+- Interfaz: http://localhost:3000
+- API y documentación: http://localhost:8000/docs
+- Salud: http://localhost:8000/health
+- Estado: `docker compose ps`
+- Detener: `docker compose down`
 
-# Detener los contenedores
+Los puertos del host se pueden cambiar en `.env` mediante `FRONTEND_HOST_PORT` y
+`BACKEND_HOST_PORT`. Si cambias el puerto de la interfaz, actualiza también
+`FRONTEND_PUBLIC_URL` y `CORS_ORIGINS`, y reconstruye el frontend.
+
+## Clave de Open-Meteo
+
+Configura en tu archivo **local** `.env`:
+
+```dotenv
+OPEN_METEO_API_MODE=commercial
+OPEN_METEO_API_KEY=
+```
+
+Completa el valor vacío únicamente en tu archivo local. En AWS, guarda la clave
+como texto plano en **Secrets Manager** y configura su **ARN** en Terraform y
+GitHub; nunca copies su valor al código, a variables del frontend o a argumentos
+de Docker. El backend elige los endpoints `customer-*` en modo comercial.
+
+El modo `free` funciona sin clave para los usos admitidos por Open-Meteo.
+Una suscripción proporciona la clave y licencia comercial:
+[planes de Open-Meteo](https://open-meteo.com/en/pricing) y
+[documentación del parámetro apikey](https://open-meteo.com/en/docs).
+
+## Desarrollo sin Docker
+
+Crea y activa un entorno virtual Python 3.13. Instala desde la raíz:
+
+```bash
+python -m pip install --require-hashes -r backend/requirements-dev.lock
+python -m pip install --require-hashes -r frontend/requirements-dev.lock
+python -m pip install --no-deps -e backend -e frontend
+```
+
+Backend, en una terminal:
+
+```bash
+cd backend
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
+```
+
+Frontend, en otra terminal:
+
+```bash
+cd frontend
+reflex run --env prod --frontend-port 3000 --backend-port 3000
+```
+
+El backend lee `.env` desde el directorio de ejecución; para ejecución directa
+colócalo en `backend/.env`, o exporta las variables al proceso. Compose lee el
+`.env` de la raíz. Ninguno se versiona.
+
+## Arquitectura
+
+```text
+Navegador → Reflex (3000: HTML, eventos y WebSocket)
+                  ↓ BACKEND_INTERNAL_URL
+           FastAPI (8000: /api/v1)
+                  ↓ WeatherProvider
+           Adaptador Open-Meteo → API externa
+```
+
+- `backend/app/domain`: modelos y catálogo WMO.
+- `backend/app/application`: interfaz del proveedor y casos de uso.
+- `backend/app/infrastructure`: HTTP asíncrono, caché TTL, logs y límites.
+- `frontend/proyecto_climatico`: componentes, estado y cliente de la API propia.
+- `infra/terraform/envs/{dev,prod}`: entornos de AWS.
+- `scripts`: controles de repositorio, despliegue y validación.
+- `tests/e2e`: navegador con proveedor simulado, exclusivo de pruebas.
+- `specs`: especificaciones SDD.
+
+Reflex publica la UI y sus eventos por el mismo puerto. En AWS, el ALB envía
+`/api/*`, salud y documentación a FastAPI; el resto, incluidos `/_event` y
+`/ping`, a Reflex. Las preferencias de unidades usan almacenamiento local del
+navegador; el estado de sesión de Reflex se mantiene en memoria y usa afinidad
+de sesión en el ALB. Un reinicio puede reiniciar la selección.
+
+## Pruebas y calidad
+
+```bash
+python -m ruff check backend frontend scripts tests/e2e
+python -m ruff format --check backend frontend scripts tests/e2e
+python -m mypy --config-file backend/pyproject.toml backend/app
+python -m mypy --config-file frontend/pyproject.toml frontend/proyecto_climatico frontend/rxconfig.py frontend/serve.py
+python -m pytest backend/tests --cov=app --cov-report=term-missing --cov-fail-under=85
+python -m pytest frontend/tests --cov=proyecto_climatico.state --cov=proyecto_climatico.services --cov-fail-under=80
+python scripts/mutation_smoke.py
+python scripts/check_repository.py
+python -m pip_audit --disable-pip -r backend/requirements.lock
+python -m pip_audit --disable-pip -r frontend/requirements.lock
+```
+
+El control de dominio/aplicación exige 90 % de cobertura en CI.
+La suite base de mutaciones comprueba ocho alteraciones aisladas (objetivo 70 %).
+Para análisis más amplio en Linux/WSL: `cd backend && mutmut run`.
+
+Pruebas de navegador:
+
+```bash
+docker compose -f compose.yml -f tests/e2e/compose.test.yml up --build --wait
+python -m pip install -r tests/e2e/requirements.txt
+python -m playwright install chromium
+python -m pytest tests/e2e -v
 docker compose down
 ```
 
-- **Frontend UI**: [http://localhost:3000](http://localhost:3000)
-- **Backend OpenAPI/Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Healthcheck**: [http://localhost:8000/health](http://localhost:8000/health)
+El override de pruebas sustituye solamente el proveedor externo; no se incorpora
+a las imágenes de producción.
 
-### Opción 2: Sin Docker (Ejecución directa)
+## GitHub Actions y producción
 
-1. **Backend**:
-   ```bash
-   cd backend
-   python -m pip install -r pyproject.toml .[dev]
-   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-   ```
+[Guía de AWS, Secrets Manager, OIDC, arranque y rollback](docs/DEPLOYMENT.md).
 
-2. **Frontend**:
-   ```bash
-   cd frontend
-   python -m pip install -r pyproject.toml .[dev]
-   reflex run --frontend-port 3000
-   ```
+- **CI Quality Gates**: formato, Ruff, mypy, pytest, cobertura, mutaciones, auditoría
+  de dependencias, Gitleaks del historial completo, actionlint, Terraform dev/prod
+  y Docker con pruebas de navegador.
+- **Docker Image Build Validation**: workflow reutilizable invocado por CI.
+- **Deploy to AWS ECS**: solo después de CI exitoso del commit de `main`; OIDC,
+  ECR por SHA, nuevas task definitions, espera de estabilidad, verificación de
+  revisiones y pruebas HTTP. Restaura las revisiones anteriores si falla el rollout.
+- Sin configuración AWS real, la ejecución automática informa **despliegue
+  pendiente** y omite la publicación. Una ejecución manual incompleta falla con
+  los nombres de las variables faltantes.
 
----
+Usamos el remoto existente:
+[github.com/JaqzO8/ProyectoClimaTEC](https://github.com/JaqzO8/ProyectoClimaTEC).
+Las especificaciones llaman al producto ProyectoClimatico; no se renombra el
+repositorio existente. Trabaja con ramas cortas, PRs y commits convencionales.
 
-## Pruebas automatizadas y calidad de código
+## Protección de credenciales
 
-```bash
-# Formateador y Linter
-python -m ruff check backend frontend
-python -m ruff format --check backend frontend
+`.gitignore` excluye `.env` y variantes, claves privadas, credenciales locales,
+`*.tfvars`, planes y estados de Terraform. Solo se permiten plantillas
+`*.example` sin valores secretos. Los lockfiles de dependencias sí se versionan.
 
-# Verificación de tipos estáticos
-python -m mypy app
+Cada contexto Docker tiene una lista explícita de archivos permitidos. No se
+copia el repositorio completo a las imágenes. Los logs HTTP omiten query strings
+y los errores públicos no exponen excepciones del proveedor.
 
-# Pruebas Backend con reporte de cobertura
-python -m pytest backend/tests --cov=app --cov-report=term-missing
-
-# Pruebas Frontend
-python -m pytest frontend/tests
-```
-
----
-
-## Endpoints de la API Backend
-
-- `GET /health`: Estado de salud básico del backend.
-- `GET /ready`: Verificación de preparación del servicio.
-- `GET /api/v1/locations/search?q={query}&limit=10`: Búsqueda global de lugares con desambiguación jerárquica (`admin1`..`admin4`, país).
-- `GET /api/v1/weather/current?latitude={lat}&longitude={lon}`: Condiciones meteorológicas actuales.
-- `GET /api/v1/weather/hourly?latitude={lat}&longitude={lon}&hours=24`: Pronóstico por horas.
-- `GET /api/v1/weather/daily?latitude={lat}&longitude={lon}&days=7`: Pronóstico diario.
-- `GET /api/v1/weather/overview?latitude={lat}&longitude={lon}`: Resumen climático completo (current + 24h + 7d).
-
----
-
-## Infraestructura en AWS con Terraform
-
-La configuración de Terraform se encuentra en `infra/terraform/`:
-
-```text
-infra/terraform/
-├─ modules/
-│  ├─ network/       # VPC, Subnets públicas multi-AZ, Internet Gateway, Security Groups
-│  ├─ ecr/           # Repositorios ECR para backend y frontend con escaneo de imágenes
-│  ├─ alb/           # Application Load Balancer y Target Groups (/api/* -> backend, /* -> frontend)
-│  ├─ ecs/           # Cluster ECS Fargate, Task Definitions y Servicios
-│  ├─ iam/           # Roles de ejecución de tareas y rol OIDC para GitHub Actions
-│  └─ observability/ # Log Groups de CloudWatch
-└─ envs/
-   ├─ dev/           # Entorno de desarrollo
-   └─ prod/          # Entorno de producción
-```
-
-### Comandos de validación IaC
+Antes de publicar:
 
 ```bash
-# Validar sintaxis y formato de Terraform
-terraform fmt -check -recursive infra/terraform
-
-# Inicializar y validar módulo dev
-cd infra/terraform/envs/dev
-terraform init -backend=false
-terraform validate
+git diff --cached --check
+python scripts/check_repository.py
+gitleaks git --redact --log-opts="--all" .
 ```
 
----
+Si alguna vez se publica una clave, revócala primero; agregarla a `.gitignore`
+no la elimina del historial.
 
-## Git y CI/CD en GitHub Actions
+## API
 
-### Configuración del repositorio remoto
+- `GET /health`, `GET /ready`
+- `GET /api/v1/locations/search?q=Lima`
+- `GET /api/v1/weather/current?latitude=-12.04&longitude=-77.03`
+- `GET /api/v1/weather/hourly?latitude=-12.04&longitude=-77.03&hours=24`
+- `GET /api/v1/weather/daily?latitude=-12.04&longitude=-77.03&days=7`
+- `GET /api/v1/weather/overview?latitude=-12.04&longitude=-77.03`
 
-```bash
-git remote add origin <GIT_REMOTE_URL>
-git push -u origin main
-```
+Temperatura: `celsius|fahrenheit`; viento: `kmh|ms|mph`;
+precipitación: `mm|inch`. Los datos llevan la zona horaria del lugar.
 
-### Workflows en `.github/workflows/`
+## Diagnóstico
 
-1. `ci.yml`: Ejecuta `ruff`, `mypy`, `pytest` backend/frontend, prueba de cobertura y validación de Terraform en cada `pull_request` y `push` a `main`.
-2. `docker.yml`: Construye y valida las imágenes Docker de backend y frontend.
-3. `deploy-aws.yml`: Autenticación AWS por OIDC, login en ECR, compilación y tagging de imágenes por SHA de Git, push a ECR y actualización del servicio en ECS Fargate.
+- Docker sin motor: inicia Docker Desktop con contenedores Linux y comprueba `docker info`.
+- UI sin conexión: `REFLEX_API_URL` debe ser la URL pública de Reflex; la conexión
+  meteorológica desde su servidor usa `BACKEND_INTERNAL_URL`.
+- Clave rechazada: revisa modo comercial, suscripción y valor de Secrets Manager.
+  Rotar el secreto requiere desplegar nuevas tareas ECS.
+- Geolocalización: el navegador exige HTTPS o localhost. Rechazar el permiso
+  mantiene disponible el buscador. El mapa externo se desactiva al usar geolocalización.
+- Rate limiting: por proceso, 120 solicitudes/minuto por defecto. Solo activa
+  `TRUST_ALB_HEADERS=true` detrás del ALB con ingreso restringido por security groups;
+  interpreta la última dirección añadida por ALB en modo append.
+- Falta de datos meteorológicos: el backend devuelve un error normalizado;
+  nunca sustituye mediciones ausentes por clima inventado.
 
----
-
-## Licencia
-
-Este proyecto está bajo la Licencia [MIT](LICENSE).
+Licencia del código: [MIT](LICENSE).

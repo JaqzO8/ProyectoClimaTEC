@@ -1,6 +1,11 @@
-project_name    = "proyectoclimatico"
-environment     = "dev"
-aws_region      = "us-east-1"
-aws_account_id  = "123456789012"
-backend_image   = "123456789012.dkr.ecr.us-east-1.amazonaws.com/proyectoclimatico-backend:latest"
-frontend_image  = "123456789012.dkr.ecr.us-east-1.amazonaws.com/proyectoclimatico-frontend:latest"
+# Copy to terraform.tfvars (ignored by Git). Replace empty values with your AWS configuration.
+aws_region = ""
+github_repo = "JaqzO8/ProyectoClimaTEC"
+github_environment = "development"
+github_oidc_provider_arn = ""
+weather_api_mode = "free"
+# For commercial mode supply the ARN of a Secrets Manager plaintext secret, never its value.
+weather_secret_arn = ""
+# First provision with zero tasks, publish images via Actions, then set counts to 1.
+desired_count_backend = 0
+desired_count_frontend = 0

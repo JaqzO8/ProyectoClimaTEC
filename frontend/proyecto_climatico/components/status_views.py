@@ -34,7 +34,7 @@ def inline_error() -> rx.Component:
     return rx.box(
         rx.vstack(
             rx.hstack(
-                rx.icon(tag="alert_circle", size=24, color=Theme.DANGER),
+                rx.icon(tag="circle_alert", size=24, color=Theme.DANGER),
                 rx.vstack(
                     rx.text(
                         "Error de conexión",
