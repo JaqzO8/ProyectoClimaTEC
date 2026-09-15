@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       frontend_public_url:
-        description: "URL pública personalizada (opcional, ej: http://54.x.x.x:3000 o https://midominio.com)"
+        description: "URL pública personalizada (opcional, ej: http://54.83.78.130:3000)"
         required: false
         default: ""
 
@@ -25,11 +25,24 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Check AWS EC2 Secrets Configuration
+        id: check_secrets
+        run: |
+          if [ -z "${{ secrets.EC2_HOST }}" ] || [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
+            echo "configured=false" >> $GITHUB_OUTPUT
+            echo "::warning::Los secretos EC2_HOST y/o EC2_SSH_KEY no están configurados en GitHub Secrets."
+            echo "### ⚠️ Despliegue pendiente de secretos en GitHub" >> $GITHUB_STEP_SUMMARY
+            echo "Por favor agrega **EC2_HOST**, **EC2_USER** y **EC2_SSH_KEY** en **Settings > Secrets and variables > Actions** del repositorio." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "configured=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Execute Remote Deployment via SSH
+        if: steps.check_secrets.outputs.configured == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER || 'ubuntu' }}
+          username: ${{ secrets.EC2_USER || 'ec2-user' }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_SSH_PORT || 22 }}
           timeout: 180s
@@ -40,7 +53,6 @@ jobs:
             export BRANCH="main"
             export FRONTEND_PUBLIC_URL="${{ inputs.frontend_public_url || vars.FRONTEND_PUBLIC_URL || '' }}"
             
-            # Crear directorio temporal si es necesario y ejecutar despliegue
             mkdir -p ~/scripts
             cat << 'EOF' > ~/scripts/deploy_runner.sh
             #!/usr/bin/env bash
