@@ -1,0 +1,62 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      frontend_public_url:
+        description: "URL pública personalizada (opcional, ej: http://54.x.x.x:3000 o https://midominio.com)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-ec2
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to EC2 Instance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Execute Remote Deployment via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER || 'ubuntu' }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_SSH_PORT || 22 }}
+          timeout: 180s
+          command_timeout: 30m
+          envs: GITHUB_SHA
+          script: |
+            export REPO_URL="https://github.com/${{ github.repository }}.git"
+            export BRANCH="main"
+            export FRONTEND_PUBLIC_URL="${{ inputs.frontend_public_url || vars.FRONTEND_PUBLIC_URL || '' }}"
+            
+            # Crear directorio temporal si es necesario y ejecutar despliegue
+            mkdir -p ~/scripts
+            cat << 'EOF' > ~/scripts/deploy_runner.sh
+            #!/usr/bin/env bash
+            set -e
+            APP_DIR="${HOME}/Proyecto_Climatico"
+            
+            if [ ! -d "$APP_DIR" ]; then
+                git clone -b main "https://github.com/${{ github.repository }}.git" "$APP_DIR"
+            fi
+            
+            cd "$APP_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+            chmod +x scripts/deploy_ec2.sh
+            ./scripts/deploy_ec2.sh
+            EOF
+
+            chmod +x ~/scripts/deploy_runner.sh
+            ~/scripts/deploy_runner.sh

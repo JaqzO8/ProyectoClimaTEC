@@ -1,0 +1,39 @@
+name: proyectoclimatico
+
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "${BACKEND_BIND_IP:-127.0.0.1}:${BACKEND_HOST_PORT:-8000}:8000"
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      OPEN_METEO_API_MODE: ${OPEN_METEO_API_MODE:-free}
+      OPEN_METEO_API_KEY: ${OPEN_METEO_API_KEY:-}
+      WEATHER_TIMEOUT_SECONDS: ${WEATHER_TIMEOUT_SECONDS:-5}
+      WEATHER_CACHE_TTL_SECONDS: ${WEATHER_CACHE_TTL_SECONDS:-300}
+      GEOCODING_CACHE_TTL_SECONDS: ${GEOCODING_CACHE_TTL_SECONDS:-1800}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-120}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        FRONTEND_PUBLIC_URL: ${FRONTEND_PUBLIC_URL:-http://localhost:3000}
+    ports:
+      - "0.0.0.0:${FRONTEND_HOST_PORT:-3000}:3000"
+    environment:
+      BACKEND_INTERNAL_URL: http://backend:8000
+      FRONTEND_PUBLIC_URL: ${FRONTEND_PUBLIC_URL:-http://localhost:3000}
+      REFLEX_API_URL: ${FRONTEND_PUBLIC_URL:-http://localhost:3000}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]

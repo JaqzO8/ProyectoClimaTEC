@@ -69,3 +69,30 @@ La UI mostrará la denominación real devuelta por el proveedor cuando esté dis
 - AWS ECS/Fargate: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/AWS_Fargate.html
 - AWS ECR + ECS: https://docs.aws.amazon.com/AmazonECR/latest/userguide/ECR_on_ECS.html
 - GitHub Actions + AWS OIDC: https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws
+
+
+EC2 => Servidores virtuales en la nube
+Dentro de la capa gratuita se obtiene varios servicios en las cuales se podrán utilizar de manera independiente para cada proyecto creado, distintos beneficios de obtimización y también adaptado a lo que se necesite , esto ayuda al rápido despliegue de servicios y aplicaciones   
+
+Dependiendo del proyecto que se va a armar, nos dan instancias a escoger, por ejemplo:
+t3.micro: Es una instancia de propósito general, ideal para cargas de trabajo de uso general con requisitos de cómputo y memoria equilibrados. Tarda 5-10 minutos en iniciarse.
+t2.micro: Similar a la t3.micro pero con un rendimiento un poco menor. Tarda 5-10 minutos en iniciarse.
+t3.small: Es una instancia de propósito general, ideal para cargas de trabajo de uso general con requisitos de cómputo y memoria equilibrados. Tarda 5-10 minutos en iniciarse.
+
+Tenemos también servicios de seguridad como ssh, scp, sftp, etc.
+
+Para conectarnos a un cliente ssh en Amazon se siguen los siguientes pasos:
+
+Busque o descarge su archivo dde clave privada, asegura permisos con chmod.
+
+CONSTRUCCION:
+
+Como reconocer un tipp de aplicación, App de software u criterio de clasificación
+Cuando salimos a desarrollar, los gráficos son clave, para ello los diseños de procesos nos permiten tener una versión as is, to be.
+Recordemos que el ciclo de vida del software empieza con el Analisis de los requisitos, requerimientos funcionales del usuario, las famosas Historias de Usuario. 
+Luego el Diseño de la arquitectura del software, el frontend y el backend.
+Luego la Codificación, aqui es donde se ejecuta los primeros codigos, las primeras líneas de comando.
+Luego la Validación y pruebas.
+Luego la implementación
+Luego el Mantenimiento y actualización de los módulos del software.
+

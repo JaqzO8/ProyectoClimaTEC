@@ -30,7 +30,7 @@ Construye una aplicación web climática global que:
 - represente correctamente país y niveles administrativos;
 - use Open-Meteo mediante una interfaz de proveedor;
 - tenga diseño claro/blanco, responsive y accesible;
-- funcione con Docker local;
+- funcione con Docker local con sus respectivas configuraciones y en un puerto o con configuraciones con las cuales no estoy usando.
 - tenga infraestructura Terraform para AWS;
 - esté preparada para Git con repo `ProyectoClimatico`;
 - tenga CI/CD;
