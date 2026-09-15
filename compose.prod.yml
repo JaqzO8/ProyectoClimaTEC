@@ -16,7 +16,7 @@ services:
       RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
       RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-120}
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
-      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     restart: unless-stopped
     security_opt: ["no-new-privileges:true"]
