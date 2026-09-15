@@ -11,14 +11,16 @@ COPY proyecto_climatico ./proyecto_climatico
 ARG FRONTEND_PUBLIC_URL=http://localhost:3000
 ENV REFLEX_API_URL=$FRONTEND_PUBLIC_URL FRONTEND_PUBLIC_URL=$FRONTEND_PUBLIC_URL
 RUN reflex init && reflex export --frontend-only --no-zip
+RUN if [ -f /root/.local/share/reflex/bun/bin/bun ]; then cp /root/.local/share/reflex/bun/bin/bun /usr/local/bin/bun; fi
 
 FROM python:3.13-slim AS runner
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 REFLEX_TELEMETRY_ENABLED=false \
-    REFLEX_SKIP_COMPILE=true REFLEX_ENV_MODE=prod GRANIAN_WORKERS=1
+    REFLEX_SKIP_COMPILE=true REFLEX_ENV_MODE=prod GRANIAN_WORKERS=1 PATH="/home/appuser/.local/share/reflex/bun/bin:${PATH}"
 RUN groupadd -g 1000 appgroup && useradd -u 1000 -g appgroup -m -s /bin/sh appuser
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --from=builder --chown=appuser:appgroup /root/.local /home/appuser/.local
 COPY --from=builder --chown=appuser:appgroup /app /app
 USER appuser
 EXPOSE 3000
