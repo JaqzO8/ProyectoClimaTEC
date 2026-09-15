@@ -86,9 +86,9 @@ EOF
 
 # 5. Construir y desplegar contenedores con Docker Compose
 echo "🔨 Construyendo y levantando contenedores..."
-sudo $DOCKER_COMPOSE_CMD -f compose.prod.yml down --remove-orphans || true
-sudo $DOCKER_COMPOSE_CMD -f compose.prod.yml build --build-arg FRONTEND_PUBLIC_URL="${PUBLIC_URL}"
-sudo $DOCKER_COMPOSE_CMD -f compose.prod.yml up -d --remove-orphans
+sudo docker compose -f compose.prod.yml down --remove-orphans || true
+sudo docker compose -f compose.prod.yml build --build-arg FRONTEND_PUBLIC_URL="${PUBLIC_URL}"
+sudo docker compose -f compose.prod.yml up -d --remove-orphans
 
 # 6. Esperar y verificar estado de los contenedores
 echo "⏳ Esperando inicialización de servicios..."
