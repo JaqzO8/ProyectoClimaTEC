@@ -32,17 +32,13 @@ fi
 # Iniciar servicio Docker si está detenido
 sudo systemctl enable --now docker || true
 
-# Verificar soporte de Docker compose
-if docker compose version &> /dev/null; then
-    DOCKER_COMPOSE_CMD="docker compose"
-elif command -v docker-compose &> /dev/null; then
-    DOCKER_COMPOSE_CMD="docker-compose"
-else
-    echo "📦 Instalando plugin docker-compose..."
-    mkdir -p ~/.docker/cli-plugins/
-    curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m) -o ~/.docker/cli-plugins/docker-compose
-    chmod +x ~/.docker/cli-plugins/docker-compose
-    DOCKER_COMPOSE_CMD="docker compose"
+# Instalar plugin buildx actualizado si es necesario
+if ! docker buildx version 2>/dev/null | grep -q 'v0.2[0-9]'; then
+    echo "📦 Actualizando docker-buildx..."
+    sudo mkdir -p /usr/libexec/docker/cli-plugins /usr/local/lib/docker/cli-plugins
+    sudo curl -sSL https://github.com/docker/buildx/releases/download/v0.21.2/buildx-v0.21.2.linux-amd64 -o /usr/libexec/docker/cli-plugins/docker-buildx
+    sudo chmod +x /usr/libexec/docker/cli-plugins/docker-buildx
+    sudo cp /usr/libexec/docker/cli-plugins/docker-buildx /usr/local/lib/docker/cli-plugins/docker-buildx
 fi
 
 # 2. Clonar o actualizar repositorio
