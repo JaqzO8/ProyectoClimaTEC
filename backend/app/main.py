@@ -162,6 +162,7 @@ async def health_check() -> dict[str, str]:
         "status": "ok",
         "service": "backend",
         "version": settings.APP_VERSION,
+        "branch": "PruebaRama",
     }
 
 

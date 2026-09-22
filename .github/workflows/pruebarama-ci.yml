@@ -1,0 +1,107 @@
+name: PruebaRama CI Quality Gate
+
+on:
+  push:
+    branches:
+      - PruebaRama
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pruebarama-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gate:
+    name: quality-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements-dev.lock
+            frontend/requirements-dev.lock
+
+      - name: Install Backend Dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.lock
+          python -m pip install --no-deps -e .
+
+      - name: Backend Lint & Type Check
+        working-directory: backend
+        run: |
+          python -m ruff check .
+          python -m ruff format --check .
+          python -m mypy app
+
+      - name: Backend Tests with 80% Coverage Gate
+        working-directory: backend
+        run: |
+          pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.lock
+          python -m pip install --no-deps -e .
+
+      - name: Frontend Lint & Type Check
+        working-directory: frontend
+        env:
+          REFLEX_TELEMETRY_ENABLED: "false"
+        run: |
+          python -m ruff check .
+          python -m ruff format --check .
+          python -m mypy proyecto_climatico rxconfig.py serve.py
+
+      - name: Frontend Tests with 80% Coverage Gate
+        working-directory: frontend
+        env:
+          REFLEX_TELEMETRY_ENABLED: "false"
+        run: |
+          pytest --cov=proyecto_climatico.state --cov=proyecto_climatico.services --cov-report=term-missing --cov-fail-under=80
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.14.7
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive infra/terraform
+
+      - name: Terraform Validate All Environments
+        run: |
+          for environment in dev prod prueba; do
+            if [ -d "infra/terraform/envs/$environment" ]; then
+              terraform -chdir="infra/terraform/envs/$environment" init -backend=false -lockfile=readonly || terraform -chdir="infra/terraform/envs/$environment" init -backend=false
+              terraform -chdir="infra/terraform/envs/$environment" validate
+            fi
+          done
+
+      - name: Check Repository Hygiene & Security
+        run: python scripts/check_repository.py
+
+      - name: Save CI Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-quality-reports
+          path: |
+            backend/coverage.xml
+            frontend/.coverage*

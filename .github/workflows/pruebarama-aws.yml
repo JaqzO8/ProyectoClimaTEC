@@ -1,0 +1,117 @@
+name: PruebaRama Ephemeral AWS Deployment & Validation
+
+on:
+  workflow_run:
+    workflows: ["PruebaRama CI Quality Gate"]
+    types: [completed]
+    branches: [PruebaRama]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: pruebarama-aws-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ephemeral-validation:
+    name: ephemeral-aws-lifecycle
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Detect Runner Public IP
+        id: runner_ip
+        run: |
+          RUNNER_IP=$(curl -s --connect-timeout 5 https://api.ipify.org || curl -s --connect-timeout 5 https://ifconfig.me)
+          echo "ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          echo "Runner Public IP: $RUNNER_IP"
+
+      - name: Generate Ephemeral SSH Key Pair
+        id: ssh_key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ephemeral -C "pruebarama-${{ github.run_id }}"
+          SSH_PUB=$(cat ~/.ssh/id_ephemeral.pub)
+          echo "pub=$SSH_PUB" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to AWS via GitHub OIDC
+        if: vars.AWS_ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@cabfdba3510de1431bac9dba27511d97497fc100 # v5
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          role-session-name: pruebarama-${{ github.run_id }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.14.7
+
+      - name: Initialize Terraform (Prueba Environment)
+        working-directory: infra/terraform/envs/prueba
+        run: |
+          terraform init
+
+      - name: Provision Ephemeral Infrastructure (Terraform Apply)
+        id: tf_apply
+        if: vars.AWS_ROLE_ARN != ''
+        working-directory: infra/terraform/envs/prueba
+        env:
+          TF_VAR_github_run_id: ${{ github.run_id }}
+          TF_VAR_runner_ip: ${{ steps.runner_ip.outputs.ip }}
+          TF_VAR_ssh_public_key: ${{ steps.ssh_key.outputs.pub }}
+        run: |
+          terraform apply -auto-approve
+          PUBLIC_IP=$(terraform output -raw public_ip)
+          INSTANCE_ID=$(terraform output -raw instance_id)
+          echo "public_ip=$PUBLIC_IP" >> "$GITHUB_OUTPUT"
+          echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Execute HTTP Availability Tests
+        if: steps.tf_apply.outputs.public_ip != ''
+        run: |
+          chmod +x scripts/deploy-test.sh
+          ./scripts/deploy-test.sh "${{ steps.tf_apply.outputs.public_ip }}" 10 10
+
+      - name: Collect Validation Metrics & Artifacts
+        if: always() && steps.tf_apply.outputs.instance_id != ''
+        run: |
+          mkdir -p artifacts
+          echo "Recopilando métricas y evidencias..."
+          cat <<EOF > artifacts/deployment-summary.json
+          {
+            "run_id": "${{ github.run_id }}",
+            "branch": "PruebaRama",
+            "instance_id": "${{ steps.tf_apply.outputs.instance_id }}",
+            "public_ip": "${{ steps.tf_apply.outputs.public_ip }}",
+            "status": "VALIDATED",
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          }
+          EOF
+
+      - name: Upload Deployment Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pruebarama-deployment-artifacts
+          path: artifacts/
+
+      - name: Teardown Ephemeral Infrastructure (Terraform Destroy)
+        if: always() && steps.tf_apply.outcome == 'success'
+        working-directory: infra/terraform/envs/prueba
+        env:
+          TF_VAR_github_run_id: ${{ github.run_id }}
+          TF_VAR_runner_ip: ${{ steps.runner_ip.outputs.ip }}
+          TF_VAR_ssh_public_key: ${{ steps.ssh_key.outputs.pub }}
+        run: |
+          echo "Destruyendo infraestructura efímera..."
+          terraform destroy -auto-approve

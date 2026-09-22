@@ -13,6 +13,7 @@ def app_header(on_open_units) -> rx.Component:
                 color=Theme.TEXT_PRIMARY,
                 font_weight="bold",
             ),
+            rx.badge("PruebaRama", color_scheme="blue", variant="surface", size="1"),
             spacing="3",
             align_items="center",
         ),
