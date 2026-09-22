@@ -11,6 +11,22 @@ resource "aws_security_group" "ephemeral_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "Frontend Reflex direct port"
+    from_port   = 3000
+    to_port     = 3000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Backend API direct port"
+    from_port   = 8000
+    to_port     = 8000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   dynamic "ingress" {
     for_each = var.runner_ip != "" ? [var.runner_ip] : []
     content {

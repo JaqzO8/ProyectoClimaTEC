@@ -2,7 +2,7 @@ name: Deploy to AWS EC2
 
 on:
   push:
-    branches: [main]
+    branches: [main, PruebaRama]
   workflow_dispatch:
     inputs:
       frontend_public_url:
@@ -50,7 +50,7 @@ jobs:
           envs: GITHUB_SHA
           script: |
             export REPO_URL="https://github.com/${{ github.repository }}.git"
-            export BRANCH="main"
+            export BRANCH="${{ github.ref_name || 'main' }}"
             export FRONTEND_PUBLIC_URL="${{ inputs.frontend_public_url || vars.FRONTEND_PUBLIC_URL || '' }}"
             
             mkdir -p ~/scripts
@@ -58,14 +58,15 @@ jobs:
             #!/usr/bin/env bash
             set -e
             APP_DIR="${HOME}/Proyecto_Climatico"
+            TARGET_BRANCH="${BRANCH:-main}"
             
             if [ ! -d "$APP_DIR" ]; then
-                git clone -b main "https://github.com/${{ github.repository }}.git" "$APP_DIR"
+                git clone -b "$TARGET_BRANCH" "https://github.com/${{ github.repository }}.git" "$APP_DIR"
             fi
             
             cd "$APP_DIR"
-            git fetch origin main
-            git reset --hard origin/main
+            git fetch origin "$TARGET_BRANCH"
+            git reset --hard "origin/$TARGET_BRANCH"
             chmod +x scripts/deploy_ec2.sh
             ./scripts/deploy_ec2.sh
             EOF

@@ -156,11 +156,24 @@ async def provider_exception_handler(request: Request, exc: OpenMeteoError) -> J
     )
 
 
+@app.get("/", tags=["System"])
+async def root() -> dict[str, str]:
+    return {
+        "service": "ProyectoClimatico",
+        "branch": "PruebaRama",
+        "environment": "AWS-PruebaRama",
+        "status": "online",
+        "version": settings.APP_VERSION,
+        "message": "Despliegue activo y navegable en AWS (PruebaRama CI/CD)",
+    }
+
+
 @app.get("/health", tags=["System"])
 async def health_check() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "backend",
+        "environment": "AWS-PruebaRama",
         "version": settings.APP_VERSION,
         "branch": "PruebaRama",
     }

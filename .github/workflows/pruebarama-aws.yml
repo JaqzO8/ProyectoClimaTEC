@@ -6,6 +6,16 @@ on:
     types: [completed]
     branches: [PruebaRama]
   workflow_dispatch:
+    inputs:
+      keep_alive_minutes:
+        description: "Minutos para mantener viva la instancia en AWS para navegación y pruebas (ej: 15)"
+        required: false
+        default: "10"
+      destroy_infra:
+        description: "Destruir automáticamente la infraestructura tras la ventana de prueba"
+        type: boolean
+        required: false
+        default: true
 
 permissions:
   contents: read
@@ -22,7 +32,7 @@ jobs:
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
       (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout Repository
@@ -76,11 +86,34 @@ jobs:
           echo "public_ip=$PUBLIC_IP" >> "$GITHUB_OUTPUT"
           echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
 
+      - name: Report Live Application URL
+        if: steps.tf_apply.outputs.public_ip != ''
+        run: |
+          IP="${{ steps.tf_apply.outputs.public_ip }}"
+          echo "=================================================="
+          echo "🚀 APLICACIÓN CLIMÁTICA ACTIVA Y NAVEGABLE EN AWS:"
+          echo "👉 http://${IP} (Web App Principal)"
+          echo "👉 http://${IP}:3000 (Frontend Reflex)"
+          echo "👉 http://${IP}:8000/docs (API Swagger)"
+          echo "=================================================="
+          echo "### 🌐 Despliegue en Vivo en AWS (PruebaRama)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Web App Navegable:** [http://${IP}](http://${IP})" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Frontend Directo:** [http://${IP}:3000](http://${IP}:3000)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **API Docs:** [http://${IP}:8000/docs](http://${IP}:8000/docs)" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Execute HTTP Availability Tests
         if: steps.tf_apply.outputs.public_ip != ''
         run: |
           chmod +x scripts/deploy-test.sh
-          ./scripts/deploy-test.sh "${{ steps.tf_apply.outputs.public_ip }}" 10 10
+          ./scripts/deploy-test.sh "${{ steps.tf_apply.outputs.public_ip }}" 12 10
+
+      - name: Validation and Navigation Window
+        if: steps.tf_apply.outputs.public_ip != ''
+        env:
+          WAIT_MINUTES: ${{ inputs.keep_alive_minutes || '5' }}
+        run: |
+          echo "Esperando ${WAIT_MINUTES} minutos para recopilar métricas de CloudWatch y permitir navegación en vivo..."
+          sleep $(( WAIT_MINUTES * 60 ))
 
       - name: Collect Validation Metrics & Artifacts
         if: always() && steps.tf_apply.outputs.instance_id != ''
@@ -106,7 +139,7 @@ jobs:
           path: artifacts/
 
       - name: Teardown Ephemeral Infrastructure (Terraform Destroy)
-        if: always() && steps.tf_apply.outcome == 'success'
+        if: always() && steps.tf_apply.outcome == 'success' && (inputs.destroy_infra != false)
         working-directory: infra/terraform/envs/prueba
         env:
           TF_VAR_github_run_id: ${{ github.run_id }}

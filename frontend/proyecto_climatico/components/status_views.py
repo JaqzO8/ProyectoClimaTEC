@@ -109,6 +109,7 @@ def app_footer() -> rx.Component:
                     font_size="13px",
                     color=Theme.TEXT_SECONDARY,
                 ),
+                rx.badge("Entorno: AWS PruebaRama (CI/CD Validated)", color_scheme="blue", variant="surface", size="1"),
                 rx.text(
                     "Datos provistos por Open-Meteo API",
                     font_size="13px",
